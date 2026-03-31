@@ -1,0 +1,12 @@
+[package]
+name = "path-of-taxation"
+version = "0.1.0"
+edition = "2024"
+authors = ["Maxwell Software Solutions"]
+description = "A satirical single-player action roguelite inspired by ARPG complexity culture."
+license = "UNLICENSED"
+publish = false
+
+[dependencies]
+bevy = "0.18"
+
