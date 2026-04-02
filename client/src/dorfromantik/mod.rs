@@ -195,10 +195,10 @@ fn setup_lighting(mut commands: Commands) {
 
 fn setup_camera(mut commands: Commands) {
     let controller = DioramaCamera {
-        focus: Vec3::new(0.0, 0.5, 0.0),
-        radius: 38.0,
-        yaw: -0.70,
-        pitch: 0.75,
+        focus: Vec3::new(2.0, 0.6, 1.0),
+        radius: 26.0,
+        yaw: -0.55,
+        pitch: 0.68,
     };
 
     commands.spawn((
@@ -221,7 +221,7 @@ fn setup_scene(
 ) {
     let layout = HexLayout {
         orientation: HexOrientation::Flat,
-        scale: Vec2::splat(2.7),
+        scale: Vec2::splat(2.9),
         ..Default::default()
     };
     let tiles = starter_tiles();
@@ -326,34 +326,39 @@ fn setup_scene(
         wall: meshes.add(Cuboid::new(0.22, 0.18, 1.70)),
     };
 
+    // Hex polygon radii sized to nearly touch at layout scale 2.9.
+    // hexx layout scale is the distance between hex centers.
+    // For flat-top hexes: the horizontal distance between centers = scale.x * sqrt(3).
+    // The polygon circumradius needs to be ~scale / sqrt(3) to fill the space.
+    // 2.9 / 1.732 ≈ 1.67. Use 1.62 for a tiny gap (beveled edge look).
     let body_mesh = meshes.add(
-        Extrusion::new(RegularPolygon::new(1.0, 6), 0.92)
+        Extrusion::new(RegularPolygon::new(1.58, 6), 0.92)
             .mesh()
             .build(),
     );
     let skirt_mesh = meshes.add(
-        Extrusion::new(RegularPolygon::new(1.14, 6), 0.22)
+        Extrusion::new(RegularPolygon::new(1.66, 6), 0.26)
             .mesh()
             .build(),
     );
     let rim_mesh = meshes.add(
-        Extrusion::new(RegularPolygon::new(1.06, 6), 0.08)
+        Extrusion::new(RegularPolygon::new(1.62, 6), 0.08)
             .mesh()
             .build(),
     );
     let cap_meshes = [
         meshes.add(
-            Extrusion::new(RegularPolygon::new(0.94, 6), 0.12)
+            Extrusion::new(RegularPolygon::new(1.52, 6), 0.12)
                 .mesh()
                 .build(),
         ),
         meshes.add(
-            Extrusion::new(RegularPolygon::new(0.90, 6), 0.14)
+            Extrusion::new(RegularPolygon::new(1.48, 6), 0.14)
                 .mesh()
                 .build(),
         ),
         meshes.add(
-            Extrusion::new(RegularPolygon::new(0.86, 6), 0.16)
+            Extrusion::new(RegularPolygon::new(1.44, 6), 0.16)
                 .mesh()
                 .build(),
         ),
@@ -427,7 +432,7 @@ fn spawn_atmosphere(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
 ) {
-    let abyss_mesh = meshes.add(Cuboid::new(92.0, 0.55, 92.0));
+    let abyss_mesh = meshes.add(Cuboid::new(120.0, 0.55, 120.0));
     let fog_mesh = meshes.add(Sphere::new(1.0).mesh().uv(20, 12));
     let abyss = materials.add(tile_material(Color::srgb(0.04, 0.04, 0.05), 1.0, 0.0));
     let island_shadow = materials.add(StandardMaterial {
@@ -468,12 +473,12 @@ fn spawn_atmosphere(
     commands.spawn((
         Mesh3d(abyss_mesh),
         MeshMaterial3d(abyss),
-        Transform::from_xyz(0.0, -2.10, 0.0),
+        Transform::from_xyz(0.0, -0.30, 0.0),
     ));
     commands.spawn((
         Mesh3d(fog_mesh.clone()),
         MeshMaterial3d(island_shadow),
-        Transform::from_xyz(1.2, -1.08, 0.6).with_scale(Vec3::new(22.0, 1.1, 18.0)),
+        Transform::from_xyz(1.2, -0.20, 0.6).with_scale(Vec3::new(28.0, 0.6, 24.0)),
     ));
     commands.spawn((
         Mesh3d(fog_mesh.clone()),
