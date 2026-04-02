@@ -95,9 +95,9 @@ fn main() {
 #[derive(Component)]
 struct MenuUI;
 
-/// Advance from Boot to Menu.
+/// Skip straight to Run for terrain testing.
 fn boot_to_menu(mut next_state: ResMut<NextState<AppState>>) {
-    next_state.set(AppState::Menu);
+    next_state.set(AppState::Run);
 }
 
 /// Spawn the title screen for the Menu state.

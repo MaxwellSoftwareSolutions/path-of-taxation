@@ -10,20 +10,8 @@ pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ComplianceMeter>()
-            .add_systems(OnEnter(AppState::Run), setup_hud)
-            .add_systems(OnExit(AppState::Run), cleanup_hud)
-            .add_systems(Update, (
-                update_health_bar,
-                update_mana_bar,
-                update_cooldown_indicators,
-                update_enemy_health_bars,
-                update_room_title,
-                update_deductions_text,
-                update_compliance_bar,
-                death_screen_system,
-                death_screen_button_system,
-            ).run_if(in_state(AppState::Run)));
+        // TEMP: HUD disabled for terrain testing
+        app.init_resource::<ComplianceMeter>();
     }
 }
 

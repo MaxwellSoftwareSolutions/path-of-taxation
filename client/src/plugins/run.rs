@@ -18,20 +18,10 @@ impl Plugin for RunPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnEnter(AppState::Run), setup_run)
             .add_systems(OnExit(AppState::Run), cleanup_run)
-            .add_systems(OnEnter(CombatPhase::RoomSelect), spawn_room_select_ui)
-            .add_systems(OnExit(CombatPhase::RoomSelect), cleanup_room_select_ui)
-            .add_systems(OnEnter(CombatPhase::Combat), spawn_room_enemies)
-            .add_systems(OnEnter(CombatPhase::RoomClear), spawn_room_clear_ui)
-            .add_systems(OnExit(CombatPhase::RoomClear), cleanup_room_clear_ui)
+            // TEMP: terrain testing mode -- only fog + vegetation animation
             .add_systems(Update, (
                 fog_drift_system,
                 vegetation_sway_system,
-                resolve_actor_collisions_system,
-                room_clear_detection_system,
-                win_lose_detection_system,
-                room_transition_system,
-                room_select_input_system,
-                room_select_button_system,
             ).chain().run_if(in_state(AppState::Run)));
     }
 }
@@ -219,15 +209,23 @@ fn setup_run(mut commands: Commands, asset_server: Res<AssetServer>) {
 
     // === ASSET LOADING ===
 
-    let floor_tiles: Vec<Handle<Image>> = vec![
-        asset_server.load("sprites/tiles/stone_clean.png"),      // 0
-        asset_server.load("sprites/tiles/stone_uneven.png"),     // 1
-        asset_server.load("sprites/tiles/stone_missing.png"),    // 2
-        asset_server.load("sprites/tiles/stone_tile_clean.png"), // 3
-        asset_server.load("sprites/tiles/dirt_floor.png"),       // 4
-        asset_server.load("sprites/tiles/dirt_tiles_s.png"),     // 5
-        asset_server.load("sprites/tiles/planks_broken.png"),    // 6
-        asset_server.load("sprites/tiles/planks.png"),           // 7
+    // Custom isometric diamond tiles -- proper dark fantasy terrain.
+    let ground_tiles: Vec<Handle<Image>> = vec![
+        asset_server.load("sprites/terrain/muddy_dirt.png"),     // 0
+        asset_server.load("sprites/terrain/stone_path.png"),     // 1
+        asset_server.load("sprites/terrain/forest_floor.png"),   // 2
+        asset_server.load("sprites/terrain/muddy_puddle.png"),   // 3
+        asset_server.load("sprites/terrain/cracked_ruins.png"),  // 4
+        asset_server.load("sprites/terrain/gravel_stones.png"),  // 5
+        asset_server.load("sprites/terrain/moss_grass.png"),     // 6
+        asset_server.load("sprites/terrain/tree_roots.png"),     // 7
+        asset_server.load("sprites/terrain/rubble.png"),         // 8
+    ];
+
+    // Fade ring uses the darkest tiles
+    let fade_tiles: Vec<Handle<Image>> = vec![
+        asset_server.load("sprites/terrain/muddy_dirt.png"),
+        asset_server.load("sprites/terrain/rubble.png"),
     ];
 
     let wall_assets: Vec<Handle<Image>> = vec![
@@ -249,14 +247,18 @@ fn setup_run(mut commands: Commands, asset_server: Res<AssetServer>) {
         asset_server.load("sprites/tiles/prop_column_wood.png"),
     ];
 
-    let tile_display = Vec2::new(140.0, 280.0);
-    let tile_spacing: f32 = 78.0;
-    let arena_radius: i32 = 7;
+    // Custom terrain tiles are ~250x185 isometric diamonds.
+    // Display MUCH larger (3x) so each tile covers a big area and seams are rare.
+    let tile_w: f32 = 420.0;
+    let tile_h: f32 = 315.0;
+    // Spacing so tiles overlap by ~30%, hiding seams completely.
+    let tile_spacing: f32 = 130.0;
+    let arena_radius: i32 = 8;
     let arena_half_extents = Vec2::splat(arena_radius as f32 * tile_spacing - 108.0);
     let mut blockers = Vec::new();
 
     // === LAYER -1: BACKGROUND TREE SILHOUETTES (behind everything) ===
-    let tree_canopy_handle: Handle<Image> = asset_server.load("sprites/tiles/tree_canopy.png");
+    let tree_canopy_handle: Handle<Image> = asset_server.load("sprites/terrain/dead_tree.png");
     for i in 0..14 {
         let angle = (i as f32 / 14.0) * std::f32::consts::TAU + 0.3;
         let dist = arena_radius as f32 * tile_spacing * 2.0;
@@ -275,151 +277,108 @@ fn setup_run(mut commands: Commands, asset_server: Res<AssetServer>) {
         ));
     }
 
-    // === LAYER 0: EXTRA DARK FADE RING (beyond arena) ===
-    // Spawn 2 extra rings of very dark tiles to soften the arena edge into void.
-    for row in -(arena_radius + 2)..=(arena_radius + 2) {
-        for col in -(arena_radius + 2)..=(arena_radius + 2) {
+    // === LAYER 1b: SEAM-HIDING OVERLAY TILES ===
+    // Place tiles at the intersections between base tiles to cover seam lines.
+    // Each overlay sits where 4 base tiles meet, at half-offset grid positions.
+    for row in -(arena_radius - 1)..arena_radius {
+        for col in -(arena_radius - 1)..arena_radius {
             let dist = row.abs() + col.abs();
-            if dist <= arena_radius || dist > arena_radius + 2 {
-                continue;
-            }
+            if dist > arena_radius - 1 { continue; }
 
-            let h = tile_hash(row, col);
-            let jitter_x = ((h % 17) as f32 - 8.0) * 3.0;
-            let jitter_y = (((h >> 4) % 17) as f32 - 8.0) * 3.0;
-            let world_x = col as f32 * tile_spacing + jitter_x;
-            let world_y = row as f32 * tile_spacing + jitter_y;
+            let h = tile_hash(row + 100, col + 100);
+            // Offset by half a tile in both axes to sit on the seam cross.
+            let world_x = (col as f32 + 0.5) * tile_spacing;
+            let world_y = (row as f32 + 0.5) * tile_spacing;
             let screen = world_to_screen(world_x, world_y);
 
-            let fade_idx = match h % 4 { 0 => 4, 1 => 5, 2 => 2, _ => 1 };
-            let fade_brightness = 0.08 + ((h % 10) as f32 * 0.008);
-            let rotation = ((h % 40) as f32 - 20.0) * 0.015;
+            let tile_idx = (h % 9) as usize;
+            let z = z_layers::TERRAIN_BASE + 1.0 + (row + col) as f32 * 0.01;
 
             commands.spawn((
                 ArenaEntity,
                 Sprite {
-                    image: floor_tiles[fade_idx].clone(),
-                    color: Color::srgb(fade_brightness, fade_brightness * 0.9, fade_brightness * 0.8),
-                    custom_size: Some(tile_display * 1.05),
+                    image: ground_tiles[tile_idx].clone(),
+                    color: Color::srgba(0.90, 0.87, 0.83, 0.7),
+                    custom_size: Some(Vec2::new(tile_w * 0.85, tile_h * 0.85)),
                     ..default()
                 },
-                Transform::from_translation(Vec3::new(screen.x, screen.y, z_layers::BG_FAR))
-                    .with_rotation(Quat::from_rotation_z(rotation)),
+                Transform::from_translation(Vec3::new(screen.x, screen.y, z)),
             ));
         }
     }
 
-    // === LAYER 1: BASE TERRAIN (with jitter, rotation, overlap) ===
+    // === LAYER 0: DARK FADE RING (beyond arena, very dark, hides edge) ===
+    for row in -(arena_radius + 2)..=(arena_radius + 2) {
+        for col in -(arena_radius + 2)..=(arena_radius + 2) {
+            let dist = row.abs() + col.abs();
+            if dist <= arena_radius || dist > arena_radius + 2 { continue; }
+            let h = tile_hash(row, col);
+            let world_x = col as f32 * tile_spacing;
+            let world_y = row as f32 * tile_spacing;
+            let screen = world_to_screen(world_x, world_y);
+            let fade_idx = (h % fade_tiles.len() as u32) as usize;
+            let brightness = 0.06 + ((h % 8) as f32 * 0.005);
+            commands.spawn((
+                ArenaEntity,
+                Sprite {
+                    image: fade_tiles[fade_idx].clone(),
+                    color: Color::srgb(brightness, brightness * 0.9, brightness * 0.8),
+                    custom_size: Some(Vec2::new(tile_w, tile_h + 20.0)),
+                    ..default()
+                },
+                Transform::from_translation(Vec3::new(screen.x, screen.y, z_layers::BG_FAR)),
+            ));
+        }
+    }
+
+    // === LAYER 1: BASE TERRAIN -- OFDN isometric diamond tiles, NO rotation ===
+    // These are proper isometric diamonds. Place them in a clean grid.
+    // Slight jitter + tint variation for organic feel, but NO rotation.
     for row in -arena_radius..=arena_radius {
         for col in -arena_radius..=arena_radius {
             let dist = row.abs() + col.abs();
-            if dist > arena_radius {
-                continue;
-            }
+            if dist > arena_radius { continue; }
 
             let h = tile_hash(row, col);
 
-            // Position jitter to break the grid.
-            let jitter_x = ((h % 13) as f32 - 6.0) * 6.0;
-            let jitter_y = (((h >> 3) % 13) as f32 - 6.0) * 6.0;
+            // Minimal jitter -- just enough to hide perfect alignment, not enough to create gaps.
+            let jitter_x = ((h % 7) as f32 - 3.0) * 1.5;
+            let jitter_y = (((h >> 3) % 7) as f32 - 3.0) * 1.5;
             let world_x = col as f32 * tile_spacing + jitter_x;
             let world_y = row as f32 * tile_spacing + jitter_y;
             let screen = world_to_screen(world_x, world_y);
 
-            // Small random rotation to break grid regularity.
-            let rotation = ((h % 30) as f32 - 15.0) * 0.025; // increased rotation
+            // All 9 tile types mixed freely across the whole arena.
+            // Use a combination of position + hash for organic patches.
+            let tile_idx = (h % 9) as usize;
 
-            // Scale variation.
-            let scale_var = 1.0 + ((h % 10) as f32 - 5.0) * 0.03; // 0.85 to 1.15
+            // Slight scale variation (very subtle -- 0.98 to 1.02).
+            let scale = 1.0 + ((h % 5) as f32 - 2.0) * 0.008;
 
-            // Tile selection -- outdoor PoE2 style: mostly dirt/stone with worn patches.
-            let tile_idx = if dist >= arena_radius - 1 {
-                // Edge: heavily damaged.
-                match h % 6 {
-                    0 => 2, 1 => 4, 2 => 6, 3 => 5, 4 => 1, _ => 4,
-                }
-            } else if dist >= arena_radius - 3 {
-                // Mid: mixed wear.
-                match h % 8 {
-                    0 => 1, 1 => 3, 2 => 2, 3 => 4, 4 => 5, 5 => 7, _ => 0,
-                }
+            // Near-full brightness -- the tiles are already dark art, don't crush them further.
+            // Only very gentle edge fade in the last 3 rings.
+            let edge_darken = if dist > arena_radius - 3 {
+                1.0 - ((dist - (arena_radius - 3)) as f32 / 4.0) * 0.3
             } else {
-                // Center: mostly clean stone path.
-                match h % 10 {
-                    0 => 1, 1 => 3, 2 => 4, _ => 0,
-                }
+                1.0
             };
+            let noise = ((h % 12) as f32 / 12.0) * 0.04 - 0.02;
+            let base = (0.95 + noise) * edge_darken;
+            let tint = Color::srgb(base, base, base);
 
-            // Dark tinting with edge falloff and per-tile noise.
-            let edge_t = dist as f32 / (arena_radius as f32 + 1.0);
-            let edge_darken = 1.0 - edge_t * 0.4;
-            let noise = ((h % 24) as f32 / 24.0) * 0.1 - 0.05;
-            let base = (0.40 + noise) * edge_darken;
-            // Warm earth tint -- muddy outdoor feel.
-            let tint = Color::srgb(
-                base * 0.90,
-                base * 0.82,
-                base * 0.68,
-            );
-
-            // Z: use row-based offset within the terrain band for proper overlap.
             let z = z_layers::TERRAIN_BASE + (row + col) as f32 * 0.01;
 
             commands.spawn((
                 ArenaEntity,
                 Sprite {
-                    image: floor_tiles[tile_idx].clone(),
+                    image: ground_tiles[tile_idx].clone(),
                     color: tint,
-                    custom_size: Some(tile_display * scale_var),
+                    custom_size: Some(Vec2::new(tile_w * scale, tile_h * scale)),
                     ..default()
                 },
-                Transform::from_translation(Vec3::new(screen.x, screen.y, z))
-                    .with_rotation(Quat::from_rotation_z(rotation)),
+                Transform::from_translation(Vec3::new(screen.x, screen.y, z)),
             ));
-
-            // Shadow emboss: spawn a darkened copy slightly offset for depth illusion.
-            if h % 3 == 0 {
-                commands.spawn((
-                    ArenaEntity,
-                    Sprite {
-                        image: floor_tiles[tile_idx].clone(),
-                        color: Color::srgba(0.0, 0.0, 0.0, 0.15),
-                        custom_size: Some(tile_display * scale_var),
-                        ..default()
-                    },
-                    Transform::from_translation(Vec3::new(screen.x + 2.0, screen.y - 1.5, z - 0.01))
-                        .with_rotation(Quat::from_rotation_z(rotation)),
-                ));
-            }
         }
-    }
-
-    // === LAYER 1b: FILL TILES (extra overlap tiles at 0.7x scale) ===
-    for i in 0..40 {
-        let h = tile_hash(i * 17 + 3, i * 29 + 7);
-        let r = ((h % (arena_radius as u32 * 2)) as f32) - arena_radius as f32;
-        let c = (((h >> 6) % (arena_radius as u32 * 2)) as f32) - arena_radius as f32;
-        if r.abs() + c.abs() > arena_radius as f32 {
-            continue;
-        }
-        let wx = c * tile_spacing + ((h % 40) as f32 - 20.0) * 3.0;
-        let wy = r * tile_spacing + (((h >> 4) % 40) as f32 - 20.0) * 3.0;
-        let screen = world_to_screen(wx, wy);
-        let fill_idx = (h % floor_tiles.len() as u32) as usize;
-        let fill_rotation = ((h % 50) as f32 - 25.0) * 0.03;
-        let fill_noise = ((h % 20) as f32 / 20.0) * 0.08 - 0.04;
-        let fill_base = 0.38 + fill_noise;
-        commands.spawn((
-            ArenaEntity,
-            Sprite {
-                image: floor_tiles[fill_idx].clone(),
-                color: Color::srgb(fill_base * 0.90, fill_base * 0.82, fill_base * 0.68),
-                custom_size: Some(tile_display * 0.7),
-                ..default()
-            },
-            Transform::from_translation(Vec3::new(screen.x, screen.y, z_layers::TERRAIN_BASE + 0.5))
-                .with_rotation(Quat::from_rotation_z(fill_rotation)),
-        ));
     }
 
     // === LAYER 2: GROUND DETAIL OVERLAYS (fake puddles, cracks, shadows) ===
@@ -611,7 +570,80 @@ fn setup_run(mut commands: Commands, asset_server: Res<AssetServer>) {
         ));
     }
 
-    // === LAYER 4b: VEGETATION SCATTER (bushes, grass, weeds at arena edges) ===
+    // === LAYER 4b: TERRAIN PROPS (rocks, pillars, fog from custom tileset) ===
+    let rock_handle: Handle<Image> = asset_server.load("sprites/terrain/rock.png");
+    let pillar_handle: Handle<Image> = asset_server.load("sprites/terrain/ruined_pillar.png");
+    let fog_cloud_handle: Handle<Image> = asset_server.load("sprites/terrain/fog_cloud.png");
+
+    // Scatter rocks across the arena
+    for i in 0..20 {
+        let h = tile_hash(i * 31 + 5, i * 47 + 11);
+        let angle = (i as f32 / 20.0) * std::f32::consts::TAU + (h % 100) as f32 * 0.06;
+        let dist = 80.0 + ((h % 100) as f32 / 100.0) * (arena_radius as f32 * tile_spacing * 0.7);
+        let wx = angle.cos() * dist;
+        let wy = angle.sin() * dist;
+        let screen = world_to_screen(wx, wy);
+        let scale = 0.5 + ((h % 8) as f32 * 0.1);
+        commands.spawn((
+            ArenaEntity,
+            Sprite {
+                image: rock_handle.clone(),
+                color: Color::srgb(0.55, 0.52, 0.50),
+                custom_size: Some(Vec2::new(50.0 * scale, 50.0 * scale)),
+                ..default()
+            },
+            Transform::from_translation(Vec3::new(screen.x, screen.y, z_layers::GROUND_PROPS + 4.0)),
+        ));
+    }
+
+    // Scatter ruined pillars (fewer, larger)
+    for i in 0..6 {
+        let h = tile_hash(i * 67 + 3, i * 89 + 7);
+        let angle = (i as f32 / 6.0) * std::f32::consts::TAU + 0.5;
+        let dist = arena_radius as f32 * tile_spacing * 0.5 + ((h % 60) as f32 * 2.0);
+        let wx = angle.cos() * dist;
+        let wy = angle.sin() * dist;
+        let screen = world_to_screen(wx, wy);
+        commands.spawn((
+            ArenaEntity,
+            Sprite {
+                image: pillar_handle.clone(),
+                color: Color::srgb(0.50, 0.48, 0.45),
+                custom_size: Some(Vec2::new(55.0, 85.0)),
+                ..default()
+            },
+            Transform::from_translation(Vec3::new(screen.x, screen.y, z_layers::GROUND_PROPS + 5.0)),
+        ));
+    }
+
+    // Fog clouds scattered at mid and edge areas
+    for i in 0..12 {
+        let h = tile_hash(i * 41 + 9, i * 53 + 13);
+        let angle = (i as f32 / 12.0) * std::f32::consts::TAU;
+        let dist = arena_radius as f32 * tile_spacing * (0.3 + ((h % 50) as f32 / 50.0) * 0.5);
+        let wx = angle.cos() * dist;
+        let wy = angle.sin() * dist;
+        let screen = world_to_screen(wx, wy);
+        let scale = 1.5 + ((h % 10) as f32 * 0.2);
+        commands.spawn((
+            ArenaEntity,
+            FogDrift {
+                speed: 0.15 + ((h % 10) as f32 * 0.02),
+                phase: (h % 628) as f32 * 0.01,
+                amplitude: Vec2::new(20.0, 8.0),
+                base_pos: screen,
+            },
+            Sprite {
+                image: fog_cloud_handle.clone(),
+                color: Color::srgba(0.3, 0.28, 0.25, 0.06),
+                custom_size: Some(Vec2::new(140.0 * scale, 90.0 * scale)),
+                ..default()
+            },
+            Transform::from_translation(Vec3::new(screen.x, screen.y, z_layers::FOG)),
+        ));
+    }
+
+    // === LAYER 4c: VEGETATION SCATTER (bushes, grass, weeds at arena edges) ===
     let veg_assets: Vec<Handle<Image>> = vec![
         asset_server.load("sprites/tiles/veg_bush.png"),
         asset_server.load("sprites/tiles/veg_grass.png"),
@@ -1196,6 +1228,9 @@ fn spawn_room_enemies(
     patch_mods: Option<Res<crate::plugins::patch_notes::PatchNoteModifiers>>,
     mut spawn_msgs: MessageWriter<SpawnEnemyMsg>,
 ) {
+    // TEMP: disabled for terrain testing
+    return;
+    #[allow(unreachable_code)]
     let Some(ref mut run) = run_state else {
         return;
     };
@@ -1291,6 +1326,17 @@ fn vegetation_sway_system(
 
 /// Detect when all enemies in a room are defeated.
 fn room_clear_detection_system(
+    enemy_query: Query<Entity, With<Enemy>>,
+    combat_phase: Res<State<CombatPhase>>,
+    mut next_phase: ResMut<NextState<CombatPhase>>,
+    mut run_state: Option<ResMut<RunStateRes>>,
+    // TEMP: skip room clear for terrain testing
+) {
+    return;
+}
+
+#[allow(dead_code, unreachable_code)]
+fn _room_clear_detection_system_disabled(
     enemy_query: Query<Entity, With<Enemy>>,
     combat_phase: Res<State<CombatPhase>>,
     mut next_phase: ResMut<NextState<CombatPhase>>,

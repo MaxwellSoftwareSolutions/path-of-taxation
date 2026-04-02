@@ -34,7 +34,7 @@ fn spawn_camera(mut commands: Commands) {
         MainCamera,
         Transform::default(),
         Bloom {
-            intensity: 0.15,
+            intensity: 0.08,
             ..Bloom::OLD_SCHOOL
         },
     ));
