@@ -124,15 +124,23 @@ fn gather_input_system(
         }
     }
 
-    // Normalize so diagonal movement isn't faster.
+    // Rotate input to align with isometric axes.
+    // In our 2:1 dimetric projection: screen_x = world_x - world_y, screen_y = (world_x + world_y) / 2
+    // So "screen up" (W) = +world_x, +world_y and "screen right" (D) = +world_x, -world_y.
+    // This is a 45-degree rotation of the input vector.
     game_input.move_direction = if raw_dir != Vec2::ZERO {
-        raw_dir.normalize()
+        let normalized = raw_dir.normalize();
+        Vec2::new(
+            normalized.x + normalized.y,
+            normalized.y - normalized.x,
+        ).normalize()
     } else {
         Vec2::ZERO
     };
 
-    // --- Dodge (Shift or gamepad South/A/Cross) ---
-    game_input.dodge_pressed = keyboard.just_pressed(KeyCode::ShiftLeft)
+    // --- Dodge (Space or Shift or gamepad South/A/Cross) ---
+    game_input.dodge_pressed = keyboard.just_pressed(KeyCode::Space)
+        || keyboard.just_pressed(KeyCode::ShiftLeft)
         || keyboard.just_pressed(KeyCode::ShiftRight);
 
     // --- Attack (Left click or gamepad West/X/Square) ---
