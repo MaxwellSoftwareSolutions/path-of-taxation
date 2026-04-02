@@ -6,6 +6,10 @@ use crate::rendering::sprites::{CharacterAtlasLayout, SpriteAssets};
 
 pub struct HubPlugin;
 
+/// Marker for the hub player entity (separate from combat Player).
+#[derive(Component)]
+pub struct HubPlayer;
+
 impl Plugin for HubPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnEnter(AppState::Hub), setup_hub)
@@ -13,16 +17,38 @@ impl Plugin for HubPlugin {
             .add_systems(
                 Update,
                 (
+                    hub_player_movement_system,
                     npc_interact_prompt_system,
                     npc_interact_system,
                     dialogue_continue_system,
                     filing_cabinet_ui_system,
                     filing_cabinet_buy_system,
                 )
+                    .chain()
                     .run_if(in_state(AppState::Hub)),
             )
             .add_systems(OnEnter(AppState::Results), setup_results)
             .add_systems(OnExit(AppState::Results), cleanup_results);
+    }
+}
+
+/// Move the hub player with WASD.
+fn hub_player_movement_system(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut query: Query<&mut WorldPosition, With<HubPlayer>>,
+    time: Res<Time>,
+) {
+    let Ok(mut pos) = query.single_mut() else { return };
+    let speed = 200.0;
+    let mut dir = Vec2::ZERO;
+    if keyboard.pressed(KeyCode::KeyW) { dir.y += 1.0; }
+    if keyboard.pressed(KeyCode::KeyS) { dir.y -= 1.0; }
+    if keyboard.pressed(KeyCode::KeyA) { dir.x -= 1.0; }
+    if keyboard.pressed(KeyCode::KeyD) { dir.x += 1.0; }
+    if dir != Vec2::ZERO {
+        dir = dir.normalize();
+        pos.x += dir.x * speed * time.delta_secs();
+        pos.y += dir.y * speed * time.delta_secs();
     }
 }
 
@@ -238,6 +264,23 @@ fn setup_hub(
         ));
     }
 
+    // --- Hub Player (movable) ---
+    commands.spawn((
+        HubEntity,
+        HubPlayer,
+        WorldPosition::new(0.0, 0.0),
+        Sprite {
+            image: sprite_assets.player.clone(),
+            custom_size: Some(Vec2::new(384.0, 384.0)),
+            texture_atlas: Some(TextureAtlas {
+                layout: atlas_layout.layout.clone(),
+                index: 0,
+            }),
+            ..default()
+        },
+        Transform::default(),
+    ));
+
     // --- NPC: Renly the Accountant ---
     commands.spawn((
         HubEntity,
@@ -363,12 +406,12 @@ fn cleanup_hub(
 // NPC interaction prompt system
 // ---------------------------------------------------------------------------
 
-/// Show/hide "[E] Talk" prompts based on a fixed reference position (world origin)
-/// since the hub has no movable player entity.
+/// Show/hide "[E] Talk" prompts based on the hub player's position.
 fn npc_interact_prompt_system(
     mut commands: Commands,
-    npc_query: Query<(Entity, &NpcEntity, &WorldPosition)>,
+    npc_query: Query<(Entity, &NpcEntity, &WorldPosition), Without<HubPlayer>>,
     prompt_query: Query<(Entity, &InteractPrompt)>,
+    hub_player_query: Query<&WorldPosition, With<HubPlayer>>,
     dialogue_res: Option<Res<ActiveDialogue>>,
     cabinet_query: Query<Entity, With<FilingCabinetUI>>,
 ) {
@@ -380,9 +423,7 @@ fn npc_interact_prompt_system(
         return;
     }
 
-    // Use a fixed "player" position at the world origin for distance checks
-    // since the hub doesn't spawn a moveable player entity.
-    let player_pos = WorldPosition::new(0.0, 0.0);
+    let player_pos = hub_player_query.single().cloned().unwrap_or(WorldPosition::new(0.0, 0.0));
 
     for (npc_entity, npc, npc_pos) in &npc_query {
         let dist = player_pos.distance_to(npc_pos);

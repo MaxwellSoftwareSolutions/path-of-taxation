@@ -3,6 +3,7 @@ use bevy::post_process::bloom::Bloom;
 
 use crate::content::CombatFeelConfig;
 use crate::components::player::Player;
+use crate::plugins::hub::HubPlayer;
 use crate::plugins::input::GameInput;
 use crate::plugins::vfx::HitstopState;
 use crate::rendering::isometric::WorldPosition;
@@ -56,12 +57,13 @@ impl CameraTarget {
     }
 }
 
-/// Follow the player entity smoothly.
+/// Follow the player entity smoothly (works for both combat Player and HubPlayer).
 fn follow_player_system(
     game_input: Res<GameInput>,
     feel: Res<CombatFeelConfig>,
     hitstop: Res<HitstopState>,
     player_query: Query<&WorldPosition, With<Player>>,
+    hub_player_query: Query<&WorldPosition, (With<HubPlayer>, Without<Player>)>,
     mut camera_target: ResMut<CameraTarget>,
     mut camera_query: Query<&mut Transform, With<MainCamera>>,
 ) {
@@ -69,7 +71,11 @@ fn follow_player_system(
         return;
     }
 
-    let Ok(world_pos) = player_query.single() else {
+    let world_pos = if let Ok(pos) = player_query.single() {
+        pos
+    } else if let Ok(pos) = hub_player_query.single() {
+        pos
+    } else {
         return;
     };
 
