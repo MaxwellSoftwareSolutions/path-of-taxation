@@ -1,0 +1,392 @@
+// =============================================================================
+// ROOM TEMPLATES -- Zone-Specific Room Configurations
+// =============================================================================
+//
+// Each zone has a set of room templates that define the layout style, enemy
+// composition, hazards, and reward potential. Rooms are procedurally composed
+// from these templates during run generation.
+//
+// Template format:
+//   - Layout defines the room shape and important positions
+//   - Enemy spawns define which enemies can appear and in what counts
+//   - Hazards define environmental dangers specific to the zone
+//   - Reward tier affects loot quality
+//
+// Room selection shows 2-3 doors BEFORE entering. Players see reward type
+// and threat level. This is the core strategic decision per room.
+//
+// "Welcome to the tutorial. It's mandatory. Like taxes."
+// =============================================================================
+
+RoomTemplates(
+
+    // =========================================================================
+    // ZONE 1: THE CLEARFILE -- Tutorial + First Combat
+    // =========================================================================
+    // Visual theme: cold, sparse forest of frozen filing cabinets and scattered
+    // paperwork. Open layouts with few obstacles. Safe and readable.
+    // Teaches: movement, dodge, basic attack, first Tax Form.
+    clearfile: (
+        zone_key: "clearfile",
+        zone_name: "The Clearfile",
+        zone_description: "A frozen forest of filing cabinets and scattered paperwork. The tutorial zone. Nothing here will kill you if you're paying attention. Probably.",
+        ambient_track: "music/clearfile_ambient",
+
+        templates: [
+            // Tutorial room -- teaches movement
+            (
+                key: "clearfile_tutorial_move",
+                name: "Orientation Chamber",
+                room_type: Combat,
+                layout: "wide_open",       // no obstacles, just space to move
+                size_tiles: [20, 15],
+                spawn_points: 4,
+                exit_count: 1,
+
+                enemy_pool: [
+                    (enemy_key: "undead_accountant", count_min: 2, count_max: 3),
+                ],
+                hazards: [],
+                reward_tier: "low",
+                is_tutorial: true,
+                tutorial_text: Some("Welcome to the tutorial. It's mandatory. Like taxes.\nUse WASD to move. That stands for Withhold, Assess, Submit, Deduct."),
+            ),
+
+            // Tutorial room -- teaches dodge roll
+            (
+                key: "clearfile_tutorial_dodge",
+                name: "Evasion Training Facility",
+                room_type: Combat,
+                layout: "corridor_wide",
+                size_tiles: [24, 12],
+                spawn_points: 3,
+                exit_count: 1,
+
+                enemy_pool: [
+                    (enemy_key: "undead_accountant", count_min: 3, count_max: 4),
+                    (enemy_key: "paper_shredder", count_min: 2, count_max: 3),
+                ],
+                hazards: [],
+                reward_tier: "low",
+                is_tutorial: true,
+                tutorial_text: Some("You've learned to fight. Now learn to dodge. Also mandatory.\nPress Space for a Tax Evasion Roll. No cooldown. No i-frames. PoE2 style."),
+            ),
+
+            // First real combat room
+            (
+                key: "clearfile_combat_basic",
+                name: "Filing Cabinet Forest",
+                room_type: Combat,
+                layout: "scattered_cover",  // filing cabinets as breakable cover
+                size_tiles: [22, 16],
+                spawn_points: 5,
+                exit_count: 2,
+
+                enemy_pool: [
+                    (enemy_key: "undead_accountant", count_min: 3, count_max: 5),
+                    (enemy_key: "paper_shredder", count_min: 2, count_max: 4),
+                ],
+                hazards: [
+                    "frozen_filing_cabinet",   // breakable cover, slows if walked through
+                ],
+                reward_tier: "standard",
+                is_tutorial: false,
+                tutorial_text: None,
+            ),
+
+            // Treasure room
+            (
+                key: "clearfile_treasure",
+                name: "Abandoned Returns Office",
+                room_type: Treasure,
+                layout: "small_room",
+                size_tiles: [12, 10],
+                spawn_points: 0,
+                exit_count: 1,
+
+                enemy_pool: [],
+                hazards: [
+                    "paper_trap",  // maybe a trapped chest? 30% chance
+                ],
+                reward_tier: "standard",
+                is_tutorial: false,
+                tutorial_text: None,
+            ),
+
+            // Rest room
+            (
+                key: "clearfile_rest",
+                name: "Break Room",
+                room_type: Rest,
+                layout: "small_room",
+                size_tiles: [10, 10],
+                spawn_points: 0,
+                exit_count: 1,
+
+                enemy_pool: [],
+                hazards: [],
+                reward_tier: "none",
+                is_tutorial: false,
+                tutorial_text: None,
+            ),
+        ],
+    ),
+
+    // =========================================================================
+    // ZONE 2: THE MUD BUREAU -- First Dungeon
+    // =========================================================================
+    // Visual theme: underground IRS tunnels, narrow winding corridors,
+    // dripping ink. Tight spaces force close-quarters combat. Cover is sparse.
+    // Introduces: ability system, item drops, currency.
+    mud_bureau: (
+        zone_key: "mud_bureau",
+        zone_name: "The Mud Bureau",
+        zone_description: "Underground IRS tunnels dripping with ink. Narrow corridors where ambushes wait around every corner. The Bureau processes all returns -- and all who enter.",
+        ambient_track: "music/mud_bureau_ambient",
+
+        templates: [
+            // Narrow corridor -- cramped fighting
+            (
+                key: "mud_bureau_corridor",
+                name: "Processing Tunnel",
+                room_type: Combat,
+                layout: "narrow_corridor",   // long and thin, enemies ahead
+                size_tiles: [30, 8],
+                spawn_points: 4,
+                exit_count: 2,
+
+                enemy_pool: [
+                    (enemy_key: "tax_collector", count_min: 1, count_max: 2),
+                    (enemy_key: "ink_crawler", count_min: 2, count_max: 3),
+                    (enemy_key: "undead_accountant", count_min: 1, count_max: 3),
+                ],
+                hazards: [
+                    "ink_drip",       // ceiling drips, small DoT puddles
+                    "narrow_walls",   // can't dodge sideways easily
+                ],
+                reward_tier: "standard",
+                is_tutorial: false,
+                tutorial_text: None,
+            ),
+
+            // T-junction ambush
+            (
+                key: "mud_bureau_tjunction",
+                name: "Filing Junction",
+                room_type: Combat,
+                layout: "t_junction",        // enemies from 3 directions
+                size_tiles: [18, 18],
+                spawn_points: 6,
+                exit_count: 3,
+
+                enemy_pool: [
+                    (enemy_key: "tax_collector", count_min: 2, count_max: 3),
+                    (enemy_key: "ink_crawler", count_min: 1, count_max: 2),
+                    (enemy_key: "paper_shredder", count_min: 3, count_max: 5),
+                ],
+                hazards: [
+                    "ink_drip",
+                    "collapsed_shelf",  // blocks one corridor until destroyed
+                ],
+                reward_tier: "standard",
+                is_tutorial: false,
+                tutorial_text: None,
+            ),
+
+            // Elite combat room -- tighter space, fewer but stronger enemies
+            (
+                key: "mud_bureau_elite",
+                name: "Senior Examiner's Office",
+                room_type: EliteCombat,
+                layout: "medium_room",
+                size_tiles: [16, 14],
+                spawn_points: 3,
+                exit_count: 2,
+
+                enemy_pool: [
+                    (enemy_key: "tax_collector", count_min: 1, count_max: 1),  // elite prefix applied at runtime
+                    (enemy_key: "ink_crawler", count_min: 2, count_max: 3),
+                ],
+                hazards: [
+                    "ink_pool_large",    // covers 25% of floor, DoT
+                    "desk_barricade",    // partial cover for enemies
+                ],
+                reward_tier: "high",
+                is_tutorial: false,
+                tutorial_text: None,
+            ),
+
+            // Shop room
+            (
+                key: "mud_bureau_shop",
+                name: "Underground Vendor Stall",
+                room_type: Shop,
+                layout: "small_room",
+                size_tiles: [14, 12],
+                spawn_points: 0,
+                exit_count: 1,
+
+                enemy_pool: [],
+                hazards: [],
+                reward_tier: "none",
+                is_tutorial: false,
+                tutorial_text: None,
+            ),
+
+            // Challenge room -- timed clear
+            (
+                key: "mud_bureau_challenge",
+                name: "Express Lane",
+                room_type: Challenge,
+                layout: "narrow_corridor",
+                size_tiles: [28, 8],
+                spawn_points: 6,
+                exit_count: 1,
+
+                enemy_pool: [
+                    (enemy_key: "paper_shredder", count_min: 8, count_max: 12),
+                    (enemy_key: "ink_crawler", count_min: 2, count_max: 3),
+                ],
+                hazards: [
+                    "countdown_timer",  // 60 seconds to clear
+                ],
+                reward_tier: "high",
+                is_tutorial: false,
+                tutorial_text: None,
+            ),
+        ],
+    ),
+
+    // =========================================================================
+    // ZONE 3: THE RED INK VALE -- Mid-Act Climax
+    // =========================================================================
+    // Visual theme: reddish blighted landscape, rivers of red ink, Pillars
+    // of Red Tape. Open areas with obstacle hazards. This is where the
+    // difficulty ramps up. Elites are common, area denial is everywhere.
+    // Introduces: elite enemies, loot rarity, passive tree.
+    red_ink_vale: (
+        zone_key: "red_ink_vale",
+        zone_name: "The Red Ink Vale",
+        zone_description: "A blighted landscape stained crimson by rivers of red ink. Pillars of Red Tape reach toward the sky. Here, regulation has become a force of nature. The enemies are stronger, the hazards are everywhere, and compliance is not optional.",
+        ambient_track: "music/red_ink_vale_ambient",
+
+        templates: [
+            // Open combat arena with environmental hazards
+            (
+                key: "red_ink_vale_arena",
+                name: "Regulation Field",
+                room_type: Combat,
+                layout: "wide_open_hazards",    // open but with red ink rivers
+                size_tiles: [24, 20],
+                spawn_points: 6,
+                exit_count: 2,
+
+                enemy_pool: [
+                    (enemy_key: "bureaucratic_bramble", count_min: 1, count_max: 2),
+                    (enemy_key: "enforcement_agent", count_min: 2, count_max: 3),
+                    (enemy_key: "red_tape_weaver", count_min: 1, count_max: 2),
+                ],
+                hazards: [
+                    "red_ink_river",       // slow zone, DoT if standing in it
+                    "red_tape_pillar",     // blocks movement, destructible
+                ],
+                reward_tier: "standard",
+                is_tutorial: false,
+                tutorial_text: None,
+            ),
+
+            // Bramble gauntlet -- area denial nightmare
+            (
+                key: "red_ink_vale_gauntlet",
+                name: "Regulation Gauntlet",
+                room_type: Combat,
+                layout: "gauntlet",           // linear path through hazards
+                size_tiles: [30, 12],
+                spawn_points: 6,
+                exit_count: 1,
+
+                enemy_pool: [
+                    (enemy_key: "bureaucratic_bramble", count_min: 3, count_max: 4),
+                    (enemy_key: "enforcement_agent", count_min: 1, count_max: 2),
+                    (enemy_key: "paper_shredder", count_min: 4, count_max: 6),
+                ],
+                hazards: [
+                    "red_ink_geyser",      // periodic eruption, high damage
+                    "bramble_zone",        // impassable without destroying brambles first
+                ],
+                reward_tier: "high",
+                is_tutorial: false,
+                tutorial_text: None,
+            ),
+
+            // Elite arena -- the real test
+            (
+                key: "red_ink_vale_elite",
+                name: "Court of Compliance",
+                room_type: EliteCombat,
+                layout: "arena_circular",
+                size_tiles: [20, 20],
+                spawn_points: 4,
+                exit_count: 2,
+
+                enemy_pool: [
+                    (enemy_key: "enforcement_agent", count_min: 1, count_max: 1),  // elite
+                    (enemy_key: "red_tape_weaver", count_min: 1, count_max: 1),    // elite
+                    (enemy_key: "tax_collector", count_min: 1, count_max: 2),
+                ],
+                hazards: [
+                    "red_ink_pool",
+                    "red_tape_pillar",
+                ],
+                reward_tier: "high",
+                is_tutorial: false,
+                tutorial_text: None,
+            ),
+
+            // IRS Audit room -- optional hard room
+            (
+                key: "red_ink_vale_irs_audit",
+                name: "IRS Audit Chamber",
+                room_type: IrsAudit,
+                layout: "arena_circular",
+                size_tiles: [22, 22],
+                spawn_points: 6,
+                exit_count: 1,
+
+                enemy_pool: [
+                    (enemy_key: "enforcement_agent", count_min: 2, count_max: 3),  // all elites
+                    (enemy_key: "red_tape_weaver", count_min: 1, count_max: 2),
+                    (enemy_key: "tax_collector", count_min: 1, count_max: 2),
+                ],
+                hazards: [
+                    "red_ink_river",
+                    "red_ink_geyser",
+                    "red_tape_pillar",
+                ],
+                reward_tier: "premium",
+                is_tutorial: false,
+                tutorial_text: None,
+            ),
+
+            // Treasure room -- hidden in the vale
+            (
+                key: "red_ink_vale_treasure",
+                name: "Forgotten Deductions Vault",
+                room_type: Treasure,
+                layout: "small_room",
+                size_tiles: [14, 12],
+                spawn_points: 0,
+                exit_count: 1,
+
+                enemy_pool: [],
+                hazards: [
+                    "trapped_chest",        // 50% chance of trap
+                    "red_ink_pool_small",
+                ],
+                reward_tier: "high",
+                is_tutorial: false,
+                tutorial_text: None,
+            ),
+        ],
+    ),
+)

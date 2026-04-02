@@ -1,0 +1,237 @@
+// =============================================================================
+// ACT 1 -- BASIC ENEMY TYPES
+// =============================================================================
+//
+// Seven enemy archetypes for the demo. Each has a distinct silhouette, behavior
+// pattern, and satirical theme. At 50% zoom, a player should be able to tell
+// every enemy apart by shape alone.
+//
+// Design rule: minimum 400ms telegraph for melee, 600ms for ranged AoE.
+// Max 8 enemies actively attacking at once -- others orbit at medium range.
+//
+// "Risen from dead returns, they shamble through the filing cabinets..."
+// =============================================================================
+
+Act1BasicEnemies(
+    enemies: [
+
+        // =====================================================================
+        // 1. UNDEAD ACCOUNTANT -- The zombie. Every game needs one.
+        // =====================================================================
+        // Zone: The Clearfile (tutorial). The first enemy the player encounters.
+        // Slow, predictable, teaches the player that enemies telegraph attacks.
+        // Shambles toward player, does a melee swipe. Risen from dead returns.
+        EnemyDef(
+            key: "undead_accountant",
+            name: "Undead Accountant",
+            description: "A shambling corpse still clutching a calculator. Risen from dead tax returns, they mindlessly pursue anyone with outstanding filings. Their swipe leaves ink stains.",
+
+            base_hp: 80,
+            base_damage: 12,
+            damage_type: Penalty,
+            move_speed: 80.0,          // slow shamble
+
+            behavior: Shamble,
+            aggro_range: 200.0,
+            attack_range: 48.0,        // melee range
+            attack_cooldown_ms: 1500,
+            windup_ms: 500,            // generous telegraph for tutorial enemy
+
+            sprite_key: "enemies/undead_accountant",
+            sprite_size_px: [48, 64],
+            is_silhouette_distinct: true, // hunched, one arm raised with calculator
+
+            deduction_drop_min: 5,
+            deduction_drop_max: 15,
+            item_drop_chance: 0.05,
+        ),
+
+        // =====================================================================
+        // 2. PAPER SHREDDER -- The fast swarm mob
+        // =====================================================================
+        // Zone: The Clearfile. Small, fast, attack in groups of 3-5.
+        // Low HP but they overwhelm. Teaches the player to use AoE and
+        // dodge roll through groups. They shred your deductions on contact.
+        EnemyDef(
+            key: "paper_shredder",
+            name: "Paper Shredder",
+            description: "A small whirring mechanism of blades and malice. They travel in packs, shredding any legitimate deductions they encounter. Fast but fragile -- like tax season deadlines.",
+
+            base_hp: 30,
+            base_damage: 6,
+            damage_type: Penalty,
+            move_speed: 200.0,         // fast -- swarm speed
+
+            behavior: Swarm,
+            aggro_range: 250.0,
+            attack_range: 32.0,        // tight melee -- they rush in
+            attack_cooldown_ms: 800,
+            windup_ms: 400,            // brief telegraph
+
+            sprite_key: "enemies/paper_shredder",
+            sprite_size_px: [32, 32],
+            is_silhouette_distinct: true, // small, round, spinning blades
+
+            deduction_drop_min: 2,
+            deduction_drop_max: 8,
+            item_drop_chance: 0.02,
+        ),
+
+        // =====================================================================
+        // 3. TAX COLLECTOR -- The chase-down bruiser
+        // =====================================================================
+        // Zone: The Mud Bureau. Relentlessly chases the player with a big
+        // telegraphed strike. Teaches dodge roll timing. The windup is long
+        // but the hit hurts. Classic PoE1 Tax Collector parody.
+        EnemyDef(
+            key: "tax_collector",
+            name: "Tax Collector",
+            description: "A hulking figure in a dark suit, wielding an oversized rubber stamp. They will chase you across the room. They will find you. They will collect. Dodge the stamp or pay the penalty.",
+
+            base_hp: 120,
+            base_damage: 25,
+            damage_type: Penalty,
+            move_speed: 140.0,         // moderate -- relentless but not fast
+
+            behavior: Chase,
+            aggro_range: 350.0,        // long aggro range -- always chasing
+            attack_range: 56.0,        // melee with reach (big stamp)
+            attack_cooldown_ms: 2000,
+            windup_ms: 600,            // long telegraph -- stamp raised high
+
+            sprite_key: "enemies/tax_collector",
+            sprite_size_px: [56, 72],
+            is_silhouette_distinct: true, // big, broad shoulders, stamp overhead
+
+            deduction_drop_min: 15,
+            deduction_drop_max: 30,
+            item_drop_chance: 0.10,
+        ),
+
+        // =====================================================================
+        // 4. INK CRAWLER -- The ranged DoT nuisance
+        // =====================================================================
+        // Zone: The Mud Bureau. Fires poison (interest) DoT projectiles from
+        // range. Leaves trails of red ink. Teaches the player to close distance
+        // or use their own ranged abilities. The DoT stacks.
+        EnemyDef(
+            key: "ink_crawler",
+            name: "Ink Crawler",
+            description: "A writhing mass of living ink that spits corrosive blobs. Its projectiles leave lingering pools of red ink that deal damage over time. The interest on its damage... compounds.",
+
+            base_hp: 60,
+            base_damage: 8,            // per projectile hit
+            damage_type: Interest,     // DoT damage type
+            move_speed: 100.0,         // slow -- prefers to sit back
+
+            behavior: Ranged,
+            aggro_range: 300.0,
+            attack_range: 250.0,       // ranged -- stays far back
+            attack_cooldown_ms: 1800,
+            windup_ms: 500,            // ink swells before spitting
+
+            sprite_key: "enemies/ink_crawler",
+            sprite_size_px: [40, 40],
+            is_silhouette_distinct: true, // blobby, tendrils, distinct from round shredder
+
+            deduction_drop_min: 8,
+            deduction_drop_max: 20,
+            item_drop_chance: 0.07,
+        ),
+
+        // =====================================================================
+        // 5. BUREAUCRATIC BRAMBLE -- The stationary area denial
+        // =====================================================================
+        // Zone: Red Ink Vale. Doesn't move. Instead, it controls space.
+        // Thorns damage nearby players. Think of it as a living wall of
+        // regulation that you have to path around or burn down. Teaches
+        // players to prioritize targets and manage space.
+        EnemyDef(
+            key: "bureaucratic_bramble",
+            name: "Bureaucratic Bramble",
+            description: "A tangled mass of red tape grown into a living barrier. It doesn't chase you -- it doesn't need to. Its thorns of regulation damage anyone who gets too close. Area denied. Per ordinance 47-B.",
+
+            base_hp: 150,
+            base_damage: 10,           // thorn tick damage
+            damage_type: Bureaucracy,
+            move_speed: 0.0,           // stationary
+
+            behavior: Stationary,
+            aggro_range: 120.0,        // triggers thorn damage in radius
+            attack_range: 96.0,        // thorn aura radius
+            attack_cooldown_ms: 1000,  // thorn tick rate
+            windup_ms: 0,              // passive damage -- no telegraph needed
+
+            sprite_key: "enemies/bureaucratic_bramble",
+            sprite_size_px: [64, 64],
+            is_silhouette_distinct: true, // wide, bushy, thorny -- nothing else looks like this
+
+            deduction_drop_min: 10,
+            deduction_drop_max: 25,
+            item_drop_chance: 0.08,
+        ),
+
+        // =====================================================================
+        // 6. ENFORCEMENT AGENT -- The kiting ranged attacker
+        // =====================================================================
+        // Zone: Red Ink Vale. Fires projectiles AND repositions to keep
+        // distance. The annoying one. Teaches players to use mobility
+        // (Capital Loss Teleport) to close gaps. Government agent with badge.
+        EnemyDef(
+            key: "enforcement_agent",
+            name: "Enforcement Agent",
+            description: "A suited figure with a glowing badge. Fires penalty notices from range and repositions when you get close. Government-trained in tactical withdrawal. 'You have the right to remain taxed.'",
+
+            base_hp: 90,
+            base_damage: 14,
+            damage_type: Expedited,    // fast projectiles
+            move_speed: 160.0,         // faster than player expects
+
+            behavior: Kiter,
+            aggro_range: 300.0,
+            attack_range: 220.0,       // ranged -- keeps distance
+            attack_cooldown_ms: 1400,
+            windup_ms: 450,            // brief badge flash before firing
+
+            sprite_key: "enemies/enforcement_agent",
+            sprite_size_px: [44, 64],
+            is_silhouette_distinct: true, // upright, suit, visible badge glow
+
+            deduction_drop_min: 12,
+            deduction_drop_max: 28,
+            item_drop_chance: 0.10,
+        ),
+
+        // =====================================================================
+        // 7. RED TAPE WEAVER -- The debuffer
+        // =====================================================================
+        // Zone: Red Ink Vale. Casts debuffs: slows and silences (prevents
+        // ability use briefly). Doesn't deal much direct damage but makes
+        // everything else more dangerous. Teach the player to prioritize
+        // high-value targets.
+        EnemyDef(
+            key: "red_tape_weaver",
+            name: "Red Tape Weaver",
+            description: "A spectral figure draped in ribbons of bureaucratic red tape. Wraps you in regulations that slow movement and silence abilities. It doesn't need to kill you -- it just needs to hold you still while others do.",
+
+            base_hp: 70,
+            base_damage: 7,
+            damage_type: Bureaucracy,
+            move_speed: 110.0,         // slow, stays back
+
+            behavior: Debuffer,
+            aggro_range: 280.0,
+            attack_range: 200.0,       // casts from range
+            attack_cooldown_ms: 2200,  // long cooldown on debuffs
+            windup_ms: 600,            // visible weaving animation
+
+            sprite_key: "enemies/red_tape_weaver",
+            sprite_size_px: [48, 64],
+            is_silhouette_distinct: true, // flowing ribbons, distinct from enforcement agent's suit
+
+            deduction_drop_min: 10,
+            deduction_drop_max: 22,
+            item_drop_chance: 0.08,
+        ),
+    ],
+)

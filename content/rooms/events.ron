@@ -1,0 +1,275 @@
+// =============================================================================
+// EVENT ROOMS -- Satirical Narrative Choice Encounters
+// =============================================================================
+//
+// Event rooms present the player with a satirical scenario and a choice
+// with real mechanical consequences. These are the "?" rooms that appear
+// as door options during runs.
+//
+// Design principles:
+//   - Every choice has a clear risk/reward tradeoff
+//   - The humor comes from the scenario framing, not from trolling the player
+//   - Outcomes should feel fair even when random
+//   - Reference PoE culture and community memes where possible
+//
+// "Still solvent, Taxpayer?"
+// =============================================================================
+
+EventRooms(
+    events: [
+
+        // =====================================================================
+        // 1. THE SUSPICIOUS DEDUCTION -- Risk/Reward
+        // =====================================================================
+        // Classic risk/reward. A too-good-to-be-true deal with consequences.
+        // 50% chance of benefit, 50% chance of an IRS Audit Room spawning.
+        // The player is gambling with their run integrity.
+        (
+            key: "suspicious_deduction",
+            name: "The Suspicious Deduction",
+            description: "You find a document on a dusty desk. It's clearly fabricated -- the handwriting changes three times and it lists 'dragon slaying' as a business expense. But the numbers... the numbers are very good.",
+
+            prompt: "This deduction claims +30% damage for the rest of the run.\nThe paperwork is clearly fabricated.\n\nDo you claim it?",
+
+            choices: [
+                (
+                    label: "Claim the deduction",
+                    description: "Take +30% damage. 50% chance an IRS Audit Room spawns within the next 3 rooms.",
+                    outcomes: [
+                        (
+                            weight: 50,
+                            result: "benefit_and_risk",
+                            effects: [
+                                "buff:damage_percent:30:permanent",
+                                "spawn_irs_audit_room:3",
+                            ],
+                            flavor_text: "You file the deduction. It goes through.\n\nSomewhere, a red light blinks on someone's desk.",
+                        ),
+                        (
+                            weight: 50,
+                            result: "benefit_only",
+                            effects: [
+                                "buff:damage_percent:30:permanent",
+                            ],
+                            flavor_text: "You file the deduction. It goes through.\nNo audit. Sometimes the system just... works.\n\n(It doesn't.)",
+                        ),
+                    ],
+                ),
+                (
+                    label: "Leave it alone",
+                    description: "Play it safe. Gain 25 Deductions for your restraint.",
+                    outcomes: [
+                        (
+                            weight: 100,
+                            result: "safe",
+                            effects: [
+                                "currency:deductions:25",
+                            ],
+                            flavor_text: "You leave the document where you found it.\nSomething about 'dragon slaying as a business expense' didn't sit right.\nSafe. Boring. Compliant.",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+
+        // =====================================================================
+        // 2. THE WHISTLEBLOWER -- Resource Tradeoff
+        // =====================================================================
+        // A fellow Taxpayer offers information for Deductions. Classic
+        // "spend resources now for strategic advantage" choice.
+        (
+            key: "the_whistleblower",
+            name: "The Whistleblower",
+            description: "A nervous figure in a rumpled suit approaches you in the corridor. They keep looking over their shoulder. 'I have information,' they whisper. 'About every enemy in this facility. Every room. Every trap. But information isn't free.'",
+
+            prompt: "The Whistleblower offers to reveal all enemies on the minimap for the rest of the run.\n\nCost: 100 Deductions.",
+
+            choices: [
+                (
+                    label: "Pay 100 Deductions",
+                    description: "Reveal all enemies and room types on the minimap for the rest of the run.",
+                    outcomes: [
+                        (
+                            weight: 100,
+                            result: "intel_gained",
+                            effects: [
+                                "currency:deductions:-100",
+                                "buff:minimap_reveal:1:permanent",
+                            ],
+                            flavor_text: "The Whistleblower hands you a dog-eared folder.\n'It's all in there. Every filing cabinet, every patrol route.'\nThey vanish into the shadows.\n\nYour minimap now shows everything.",
+                        ),
+                    ],
+                ),
+                (
+                    label: "Decline",
+                    description: "Keep your Deductions. Information is overrated.",
+                    outcomes: [
+                        (
+                            weight: 100,
+                            result: "declined",
+                            effects: [],
+                            flavor_text: "'Your loss, taxpayer. Your loss.'\nThe Whistleblower slips away.\nYou'll navigate blind. As intended.",
+                        ),
+                    ],
+                ),
+                (
+                    label: "Report them to the authorities",
+                    description: "Gain 15 Compliance. The Whistleblower drops 50 Deductions as they flee.",
+                    outcomes: [
+                        (
+                            weight: 100,
+                            result: "reported",
+                            effects: [
+                                "compliance:15",
+                                "currency:deductions:50",
+                            ],
+                            flavor_text: "'AUDIT!' you shout. The Whistleblower's eyes go wide.\nThey drop their folder and RUN.\nYou pick up 50 Deductions from the scattered papers.\nSomewhere, a Compliance Meter ticks upward.\nYou are a model citizen.",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+
+        // =====================================================================
+        // 3. THE LOOPHOLE -- Speed vs. Rewards
+        // =====================================================================
+        // A shortcut that skips the next room but forfeits its reward.
+        // Great for low-HP situations, bad for build optimization.
+        (
+            key: "the_loophole",
+            name: "The Loophole",
+            description: "A crack in the wall reveals a hidden passage. Someone has scratched 'SHORTCUT' into the stone, followed by 'Section 501(c)(3)' and a crude drawing of a hand giving a thumbs up. The passage bypasses the next room entirely.",
+
+            prompt: "The Loophole leads past the next room.\nYou skip the room's enemies -- but also its rewards.\n\nTake the shortcut?",
+
+            choices: [
+                (
+                    label: "Take the Loophole",
+                    description: "Skip the next room entirely. No enemies, no rewards, no risk.",
+                    outcomes: [
+                        (
+                            weight: 100,
+                            result: "shortcut",
+                            effects: [
+                                "skip_next_room",
+                                "compliance:-10",
+                            ],
+                            flavor_text: "You squeeze through the crack.\nThe next room passes by unseen, its enemies none the wiser.\nYour Compliance drops. Loopholes aren't exactly... legal.\nBut they work.",
+                        ),
+                    ],
+                ),
+                (
+                    label: "Ignore it",
+                    description: "Face the next room properly. Like a responsible taxpayer.",
+                    outcomes: [
+                        (
+                            weight: 100,
+                            result: "honest",
+                            effects: [
+                                "compliance:5",
+                            ],
+                            flavor_text: "You walk past the loophole.\nThe responsible path. The compliant path.\nThe path that involves getting punched by Tax Collectors.\nBut at least your conscience is clean.",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+
+        // =====================================================================
+        // 4. CLOSE YOUR EYES AND FILE -- Pure PoE Parody
+        // =====================================================================
+        // A Premium Filing Fee sits on a pedestal. Apply it to your weapon?
+        // The result is HIDDEN until you equip the item. Pure "close your
+        // eyes and slam" parody.
+        (
+            key: "close_your_eyes_and_file",
+            name: "Close Your Eyes and File",
+            description: "A pedestal in the center of the room. On it, glowing softly, sits a single Premium Filing Fee. Behind it, a sign reads: 'APPLY TO EQUIPPED WEAPON. RESULT IS HIDDEN UNTIL RE-EQUIPPED. NO REFUNDS. NO APPEALS. CLOSE YOUR EYES AND FILE.'",
+
+            prompt: "Apply the Premium Filing Fee to your weapon?\nThe new modifier will be HIDDEN until you re-equip the weapon.\n\nYou won't know what you got until it's too late.",
+
+            choices: [
+                (
+                    label: "Close your eyes and file",
+                    description: "Apply a Premium Filing Fee to your weapon. Result hidden until re-equip.",
+                    outcomes: [
+                        (
+                            weight: 60,
+                            result: "good_roll",
+                            effects: [
+                                "apply_premium_filing_fee:weapon:hidden",
+                                "affix_quality:good",
+                            ],
+                            flavor_text: "You close your eyes. You file.\nSomething happens. You don't know what.\nThe weapon glows briefly, then goes dark.\nWhatever it is, it's done. No take-backs.\n\n'Close your eyes and file.' -- Taxeclast proverb",
+                        ),
+                        (
+                            weight: 30,
+                            result: "mediocre_roll",
+                            effects: [
+                                "apply_premium_filing_fee:weapon:hidden",
+                                "affix_quality:mediocre",
+                            ],
+                            flavor_text: "You close your eyes. You file.\nThe weapon shivers. A faint 'meh' echoes.\nIt's done. For better or worse.\nMostly worse.",
+                        ),
+                        (
+                            weight: 10,
+                            result: "amazing_roll",
+                            effects: [
+                                "apply_premium_filing_fee:weapon:hidden",
+                                "affix_quality:amazing",
+                            ],
+                            flavor_text: "You close your eyes. You file.\nThe weapon ERUPTS with light. The ground shakes.\nSomething incredible just happened.\nYou still don't know what.\nBut it feels expensive.",
+                        ),
+                    ],
+                ),
+                (
+                    label: "Keep your eyes open",
+                    description: "Take the Premium Filing Fee as a currency item instead.",
+                    outcomes: [
+                        (
+                            weight: 100,
+                            result: "kept_currency",
+                            effects: [
+                                "currency:premium_filing_fee:1",
+                            ],
+                            flavor_text: "You pocket the Premium Filing Fee.\nSafe. Calculated. Boring.\nThe sign seems to judge you.\nSomewhere, Chris Wilson sheds a single tear.",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+
+        // =====================================================================
+        // 5. THE PATCH NOTES -- Forced Adaptation
+        // =====================================================================
+        // A mid-run balance patch. Your highest-damage skill gets nerfed,
+        // your lowest-damage skill gets buffed. The player must adapt.
+        // This is systemic satire -- the mechanic IS the joke.
+        (
+            key: "the_patch_notes",
+            name: "The Patch Notes",
+            description: "A government notice materializes in the air, crackling with bureaucratic energy. It unfurls automatically and begins reading itself aloud in a monotone voice. Oh no. It's a balance patch.",
+
+            prompt: "PATCH 3.47.2 -- BALANCE ADJUSTMENTS\n\nYour highest-damage ability's damage has been reduced by 20%.\n\"This is a buff.\"\n\nYour lowest-damage ability's damage has been increased by 30%.\n\"We feel this brings it in line with our vision.\"\n\nYou must accept to continue.",
+
+            choices: [
+                (
+                    label: "Accept and Continue",
+                    description: "Apply the balance changes. You have no choice. Like real patch notes.",
+                    outcomes: [
+                        (
+                            weight: 100,
+                            result: "patched",
+                            effects: [
+                                "nerf_highest_damage_skill:20",
+                                "buff_lowest_damage_skill:30",
+                            ],
+                            flavor_text: "PATCH APPLIED.\n\nYour strongest ability has been 'rebalanced.'\nYour weakest ability has been 'brought in line with the vision.'\n\nAdapt. Overcome. File a complaint that will be ignored.\n\n\"This is a buff.\" -- Grinding Government Games",
+                        ),
+                    ],
+                ),
+                // There is no second choice. You must accept. That's the joke.
+            ],
+        ),
+    ],
+)

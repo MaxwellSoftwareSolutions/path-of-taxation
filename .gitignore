@@ -1,6 +1,20 @@
-target/
+/target
+**/target
+*.swp
+*.swo
 .DS_Store
 .idea/
 .vscode/
-Cargo.lock
+*.log
 
+# Downloaded asset packs (large, not tracked)
+assets/downloaded/
+
+# Test screenshots
+test_screenshots/
+
+# Game agent runtime files
+game_agent/venv/
+game_agent/screenshots/
+game_agent/logs/
+game_agent/__pycache__/

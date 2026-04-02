@@ -1,0 +1,16 @@
+[package]
+name = "pot-client"
+description = "Path of Taxation - Bevy game client"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+bevy = { workspace = true }
+pot-shared = { path = "../shared" }
+serde = { workspace = true }
+ron = { workspace = true }
+rand = { workspace = true }
+glam = { workspace = true }

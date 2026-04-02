@@ -31,7 +31,31 @@ Ship a vertical slice where the player can:
 
 ## Status
 
-This repository is currently scaffolded but not yet compiled in this environment because the Rust toolchain is not installed locally.
+This repository compiles and runs in this environment as an early single-map combat prototype.
+
+## Local Playtesting
+
+The prototype now includes a small playtest harness so the game can be driven and captured from the terminal.
+
+- Run a scripted smoke test:
+  - `./scripts/playtest.sh smoke`
+- Run a more aggressive combat script:
+  - `./scripts/playtest.sh clear`
+- Capture the current game window manually:
+  - `./scripts/capture-frame.sh`
+
+Artifacts are written to `artifacts/playtests/`:
+
+- `.png` screenshot of the captured frame
+- `.jsonl` telemetry events
+- `.log` runtime log from `cargo run`
+
+In-game debug controls:
+
+- `F1` toggle debug overlay
+- `F5` restart the run directly
+- `Esc` return to the hub
+- `R` return to the hub from the run state
 
 ## Next Milestones
 
@@ -42,4 +66,3 @@ This repository is currently scaffolded but not yet compiled in this environment
 - Connect the run loop to hub progression
 
 See [docs/game-plan.md](/home/hex/path-of-taxation/docs/game-plan.md) and [docs/vertical-slice.md](/home/hex/path-of-taxation/docs/vertical-slice.md).
-

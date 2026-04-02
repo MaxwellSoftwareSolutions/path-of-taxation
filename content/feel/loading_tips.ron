@@ -1,0 +1,66 @@
+// =============================================================================
+// LOADING SCREEN TIPS -- Useless, Contradictory, and Satirical
+// =============================================================================
+//
+// Displayed during room transitions and loading screens. Each tip should
+// either be genuinely useless, self-contradictory, a PoE community meme
+// reference, or a satirical jab at game design / tax law.
+//
+// These are shown one at a time with the "TIP:" prefix.
+// Minimum 20 tips. Shuffled randomly, no repeats until all shown.
+//
+// "If you're reading this, you've been on the loading screen too long.
+//  Working as intended."
+// =============================================================================
+
+LoadingTips(
+    tips: [
+        // --- Genuinely useless advice ---
+        "Tip: To avoid dying, don't get hit.",
+        "Tip: Enemies deal damage. This is by design.",
+        "Tip: You can move in 8 directions. We counted.",
+        "Tip: The dodge roll lets you dodge things. Hence the name.",
+        "Tip: Items with better stats are generally better than items with worse stats.",
+
+        // --- Self-contradictory / self-aware ---
+        "Tip: The Passive Tree contains exactly one node that matters. Good luck.",
+        "Tip: This tip intentionally left blank.",
+        "Tip: The Tax Code is over 1,500 pages. You've read 0 of them. Don't worry, neither have we.",
+        "Tip: Loading tips are a great way to disguise loading times. You're welcome.",
+        "If you're reading this, you've been on the loading screen too long. Working as intended.",
+
+        // --- PoE community memes ---
+        "The Compliance Manifesto states: 'Easy combat reduces player suffering, and suffering is the point.'",
+        "Patch 3.47: We've made the game harder. You're welcome.",
+        "Fun fact: The word 'fun' does not appear anywhere in the Tax Code. This was an intentional design choice.",
+        "Tip: 'Close your eyes and file' is not financial advice. It is, however, game advice.",
+        "Remember: this is a buff.",
+        "Tip: The drop rate for Premium Filing Fees has been adjusted. We will not tell you in which direction.",
+        "Tip: Your build is wrong. We can't tell you how. But it is.",
+
+        // --- Tax law satire ---
+        "Did you know? In Taxeclast, tax evasion is a crime. Tax avoidance is a skill. The difference is your accountant.",
+        "Tip: The Compliance Meter tracks how legally you're playing. Low compliance means better loot. Make of that what you will.",
+        "Fun fact: The Bloated Filer has been Employee of the Month for 30 consecutive years. No one else applied.",
+        "Tip: Commissioner Geonor's approval rating is 100%. Disapproval has been outlawed.",
+        "Per Section 7(b)(iii): loading tips are tax-deductible if read during business hours.",
+        "Tip: The IRS Agent that spawns when your Compliance is low is not a bug. It's a feature. An auditing feature.",
+
+        // --- Game design self-awareness ---
+        "Tip: The developers spent more time on these loading tips than on game balance.",
+        "Tip: Somewhere in the Passive Tree, there's a node that gives +0.1% damage. It took 3 hours to implement.",
+        "Tip: The Debate Club was originally a rhythm game. We changed it. You're welcome.",
+        "Tip: If the combat doesn't feel good, try adjusting the screen shake slider. It won't help, but you'll feel like you tried.",
+        "Tip: This game contains approximately 1,500 passive tree nodes. The developer who placed them is no longer with us. (They quit. They're fine.)",
+
+        // --- Existential ---
+        "Tip: Every enemy you kill was once an employee with a pension plan. You just eliminated their retirement.",
+        "Tip: The Refund Witch's abilities are powered by pure tax law. This is somehow more terrifying than regular magic.",
+        "Tip: In the land of Taxeclast, death is not the end. It's a reclassification event.",
+
+        // --- Actually useful (buried among useless tips for comedy) ---
+        "Tip: Recovery frames can be canceled into a dodge roll. This is the most important tip on this screen.",
+        "Tip: Elite enemies with the 'Penalizing' prefix reflect 5% of damage. High-DPS builds should watch their own HP.",
+        "Tip: Input buffering lets you queue your next action during the last 4 frames of an animation. Mash responsibly.",
+    ],
+)

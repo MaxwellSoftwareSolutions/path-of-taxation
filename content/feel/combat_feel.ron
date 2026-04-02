@@ -1,0 +1,288 @@
+// =============================================================================
+// COMBAT FEEL PARAMETERS -- "THE JUICE"
+// =============================================================================
+//
+// Every hit must communicate impact through 5-6 simultaneous feedback channels.
+// These parameters control the "game feel" layer that makes combat satisfying.
+//
+// All durations are in frames (at 60fps, 1 frame = ~16.67ms).
+// All distances are in logical pixels (pre-scaling).
+//
+// This file is hot-reloadable. Change a value, see it instantly.
+// "The Compliance Manifesto states: easy combat reduces player suffering,
+//  and suffering is the point."
+// =============================================================================
+
+CombatFeel(
+    // =========================================================================
+    // HITSTOP (FREEZE FRAMES)
+    // =========================================================================
+    // The single most important feel technique. Both attacker and target freeze
+    // on every hit. Without hitstop, combat feels like swinging through fog.
+
+    hitstop: (
+        // Normal attack connects
+        normal_frames: 3,               // 50ms -- subtle but present
+        // Critical hit -- sell it
+        crit_frames: 5,                 // 83ms -- slightly longer, player feels the crit
+        // Heavy / charged attack lands
+        heavy_frames: 6,                // 100ms -- committed attack, reward the commitment
+        // Kill blow -- dramatic finish
+        kill_frames: 4,                 // 67ms freeze + slowmo
+        kill_slowmo_frames: 8,          // 133ms at 50% speed after the freeze
+        kill_slowmo_speed: 0.5,         // time scale during kill slowmo
+        // Last enemy in room -- cathartic moment
+        last_enemy_frames: 4,           // 67ms freeze + extended slowmo
+        last_enemy_slowmo_frames: 16,   // 267ms at 30% speed -- savor the moment
+        last_enemy_slowmo_speed: 0.3,   // time scale for last-kill slowmo
+        // Boss phase transition -- spectacle
+        boss_transition_frames: 12,     // 200ms freeze + screen flash
+        // Player takes damage -- brief, don't make getting hit feel good
+        player_hit_frames: 2,           // 33ms -- minimal feedback
+    ),
+
+    // =========================================================================
+    // SCREEN SHAKE
+    // =========================================================================
+    // Directional shake toward impact direction. NEVER random.
+    // Implementation: offset the camera, not the world.
+    // Shake queue sums concurrent shakes with diminishing returns.
+
+    screen_shake: (
+        // Player attack connects
+        normal_intensity_px: 2.0,
+        normal_duration_frames: 4,
+        normal_falloff: "ExponentialDecay",
+
+        // Critical hit
+        crit_intensity_px: 4.0,
+        crit_duration_frames: 6,
+        crit_falloff: "ExponentialDecay",
+
+        // Player takes damage
+        player_hit_intensity_px: 3.0,
+        player_hit_duration_frames: 5,
+        player_hit_falloff: "ExponentialDecay",
+
+        // Boss slam attack
+        boss_slam_intensity_px: 8.0,
+        boss_slam_duration_frames: 10,
+        boss_slam_falloff: "Bounce",
+        boss_slam_bounce_count: 2,
+
+        // Explosion / AoE
+        explosion_intensity_px: 5.0,
+        explosion_duration_frames: 8,
+        explosion_falloff: "RadialExponential",
+
+        // Room clear celebration
+        room_clear_intensity_px: 3.0,
+        room_clear_duration_frames: 12,
+        room_clear_falloff: "SlowFade",
+
+        // Global cap -- never exceed this regardless of shake stacking
+        max_total_intensity_px: 12.0,
+    ),
+
+    // =========================================================================
+    // CAMERA PUNCH AND ZOOM
+    // =========================================================================
+    camera: (
+        // Special ability cast -- zoom toward target
+        special_zoom_percent: 5.0,
+        special_zoom_duration_ms: 200,
+        special_zoom_easing: "EaseOut",
+
+        // Boss entrance -- dramatic reveal
+        boss_entrance_zoom_duration_ms: 2000,
+        boss_entrance_hold_ms: 1000,
+
+        // Kill blow on elite/boss -- snap zoom to corpse
+        kill_zoom_percent: 8.0,
+        kill_zoom_duration_ms: 300,
+
+        // Dodge roll near miss -- micro zoom out
+        dodge_near_miss_zoom_percent: -2.0,
+        dodge_near_miss_duration_ms: 150,
+
+        // Debate Club card play
+        debate_shake_px: 1.0,
+        debate_vignette_flash_ms: 100,
+    ),
+
+    // =========================================================================
+    // HIT FLASH AND DAMAGE FEEDBACK
+    // =========================================================================
+    hit_flash: (
+        // Enemy hit -- replace all pixels with white
+        enemy_flash_frames: 2,          // 33ms
+
+        // Enemy damage tint -- tint red, lerp back to normal
+        enemy_damage_tint_frames: 8,    // 133ms
+
+        // Player damage -- screen-edge red vignette
+        player_vignette_frames: 12,     // 200ms
+
+        // Low HP persistent effects
+        low_hp_threshold: 0.25,         // 25% HP triggers persistent vignette
+        low_hp_heartbeat_bpm: 80,       // heartbeat pulse rate
+
+        // Chromatic aberration on crits / boss transitions
+        chromatic_aberration_frames: 4,
+        chromatic_aberration_offset_px: 3.0,
+
+        // Death dissolve -- enemy sprite breaks into particles
+        death_dissolve_particle_count: 10, // 8-12 particles
+        death_dissolve_frames: 20,         // 333ms scatter + fade
+    ),
+
+    // =========================================================================
+    // PARTICLES ON IMPACT
+    // =========================================================================
+    // Every hit spawns directional particles. This is non-negotiable.
+
+    particles: (
+        // Normal hit -- burst in hit direction, gravity-affected
+        normal_count: 8,                // 6-10, center value
+        normal_fade_frames: 12,
+        normal_gravity: true,
+
+        // Critical hit -- faster velocity + larger sparks
+        crit_count: 15,                 // 12-18, center value
+        crit_extra_sparks: 3,           // large "spark" particles
+        crit_fade_frames: 14,
+
+        // Kill blow -- radial burst + lingering sparkles + screen flash
+        kill_count: 25,                 // 15-25+
+        kill_screen_flash: true,
+        kill_linger_sparkle_count: 8,
+        kill_linger_duration_frames: 30,
+
+        // Dodge roll dust
+        dodge_dust_count: 5,
+        dodge_dust_fade_frames: 8,
+
+        // Ability cast muzzle flash
+        cast_particle_count: 4,
+        cast_particle_fade_frames: 6,
+    ),
+
+    // =========================================================================
+    // DAMAGE TYPE PARTICLE THEMES
+    // =========================================================================
+    damage_type_particles: (
+        audit: (
+            description: "Paper scraps / snowflake particles, flutter down slowly",
+            color_primary: "#FFA500",    // orange
+            color_secondary: "#FFD700",  // gold
+            behavior: "FloatDown",
+        ),
+        penalty: (
+            description: "Impact sparks, fast directional burst",
+            color_primary: "#FFFFFF",
+            color_secondary: "#CCCCCC",
+            behavior: "Burst",
+        ),
+        freeze: (
+            description: "Ice shards, slow crystalline scatter",
+            color_primary: "#88CCFF",
+            color_secondary: "#FFFFFF",
+            behavior: "FloatDown",
+        ),
+        bureaucracy: (
+            description: "Ink splatter particles, stick to ground briefly",
+            color_primary: "#333366",
+            color_secondary: "#6644AA",
+            behavior: "SplatGround",
+        ),
+        expedited: (
+            description: "Lightning sparks, erratic fast movement",
+            color_primary: "#FFFF44",
+            color_secondary: "#FFFFFF",
+            behavior: "Erratic",
+        ),
+        interest: (
+            description: "Green drip particles, slow poison trail",
+            color_primary: "#44CC44",
+            color_secondary: "#88FF88",
+            behavior: "Drip",
+        ),
+    ),
+
+    // =========================================================================
+    // INPUT BUFFERING
+    // =========================================================================
+    // Buffer the next input during the last N frames of any animation.
+    // Player presses attack during dodge recovery = attack fires immediately
+    // when dodge ends. This makes the game feel faster than it is.
+
+    input_buffer_frames: 4,             // 67ms buffer window
+
+    // =========================================================================
+    // COYOTE TIME
+    // =========================================================================
+    // After leaving a valid action window, the action still registers for
+    // N frames. Forgiveness mechanic that prevents frustrating "I pressed it!"
+
+    coyote_time_frames: 3,              // 50ms forgiveness window
+
+    // =========================================================================
+    // TIME DILATION
+    // =========================================================================
+    // Slow-motion on key moments for dramatic effect.
+
+    time_dilation: (
+        // Kill any enemy
+        kill_speed: 0.5,                // 50% time scale
+        kill_duration_ms: 200,          // how long the slowmo lasts
+
+        // Last enemy in room (overrides kill if applicable)
+        last_kill_speed: 0.3,           // 30% time scale
+        last_kill_duration_ms: 350,     // extended dramatic moment
+
+        // Boss phase transition
+        boss_phase_speed: 0.2,          // near-freeze
+        boss_phase_duration_ms: 500,
+
+        // Player near death (below 10% HP)
+        near_death_speed: 0.7,          // slight slowdown for tension
+        near_death_threshold: 0.10,
+    ),
+
+    // =========================================================================
+    // ENEMY FEEL
+    // =========================================================================
+    enemy_feel: (
+        // Hitstun -- enemy recoil animation after hitstop
+        recoil_animation_frames: 3,
+
+        // Knockback -- ease-out curve (fast push, slow decel)
+        knockback_curve: "EaseOut",
+        wall_slam_bonus_damage_percent: 10.0,
+
+        // Telegraphs -- minimum readability windows
+        melee_telegraph_min_ms: 400,
+        ranged_aoe_telegraph_min_ms: 600,
+
+        // Crowd management -- max simultaneously attacking enemies
+        max_active_attackers: 8,
+    ),
+
+    // =========================================================================
+    // SOUND LAYERING
+    // =========================================================================
+    sound: (
+        // Every hit plays 2-3 layered sounds
+        layers_per_hit: 3,              // impact + reaction + sweetener
+
+        // Pitch variation to prevent repetition
+        pitch_variation_percent: 5.0,   // +/- 5% random pitch shift
+
+        // Silence before big boss attacks
+        pre_impact_dip_ms: 250,         // 200-300ms audio dip
+        pre_impact_dip_amount: 0.4,     // reduce music + ambient to 40%
+
+        // Sound variants per effect (never play same exact sound twice)
+        min_variants_per_sfx: 3,
+    ),
+)

@@ -1,0 +1,7 @@
+torch>=2.0.0
+transformers>=4.45.0
+accelerate
+qwen-vl-utils
+pyautogui
+Pillow
+pydantic>=2.0

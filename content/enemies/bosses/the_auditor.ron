@@ -1,0 +1,155 @@
+// =============================================================================
+// BOSS: THE AUDITOR -- Mud Bureau Boss
+// =============================================================================
+//
+// Zone: The Mud Bureau (Underground IRS Tunnels)
+// PoE2 Parody: The Devourer
+//
+// The second boss. Burrows through your financial records. Three phases that
+// escalate in speed and complexity. This is where the player learns that
+// boss phases change the rules.
+//
+// He's a gaunt, sharp-suited figure with unnaturally long fingers, perfect
+// for flipping through documents at inhuman speed. His desk is his weapon.
+// The arena is a subterranean IRS office with collapsing file cabinets.
+//
+// "Your records are... INCOMPLETE!"
+// =============================================================================
+
+BossDef(
+    key: "the_auditor",
+    name: "The Auditor",
+    title: "Senior Examiner of the Mud Bureau",
+    description: "A gaunt figure in a perfectly pressed suit, fingers elongated from decades of page-turning. He can audit a thousand returns in the time it takes you to blink. His desk is a weapon. His filing cabinets are a fortress. Your financial history is his to devour.",
+
+    base_hp: 1200,
+
+    phases: [
+        // Phase 1: Paperwork Barrage (100% - 66% HP)
+        // Throws stacks of paper at the player. Telegraphed, dodge-able.
+        // Establishes the rhythm: he throws, you dodge, you counterattack.
+        BossPhase(
+            name: "Paperwork Barrage",
+            hp_threshold: 1.0,
+            attacks: [
+                // Throws a fan of 3 paper stacks at player
+                "paperwork_fan",
+                // Summons a file cabinet that slides across the arena
+                "sliding_cabinet",
+                // Quick forward lunge with pen-stab
+                "pen_stab",
+            ],
+            transition_text: None,
+        ),
+
+        // Phase 2: Desk Slam (66% - 33% HP)
+        // Slams his desk, creating shockwaves. Adds ground hazards.
+        // The desk telegraphs are bigger but he's also summoning ink crawlers.
+        BossPhase(
+            name: "Desk Slam",
+            hp_threshold: 0.66,
+            attacks: [
+                // Desk slam -- creates radial shockwave
+                "desk_slam_shockwave",
+                // Still throws paper, now 5 in a spread
+                "paperwork_fan_wide",
+                // Summons 2 Ink Crawlers as adds
+                "summon_ink_crawlers",
+                // Ink bomb -- targeted ground AoE
+                "ink_bomb",
+            ],
+            transition_text: Some("The Auditor rises from his chair. His desk CRACKS the floor.\n\"I see discrepancies. MANY discrepancies.\""),
+        ),
+
+        // Phase 3: Audit Frenzy (33% - 0% HP)
+        // Full aggression. Fast attacks, multiple paper fans, desk is broken
+        // and he's using the legs as weapons. Desperate and furious.
+        BossPhase(
+            name: "Audit Frenzy",
+            hp_threshold: 0.33,
+            attacks: [
+                // Rapid pen stabs -- 3-hit combo
+                "pen_stab_combo",
+                // Broken desk leg sweep -- wide arc melee
+                "desk_leg_sweep",
+                // Paper storm -- fills arena with swirling paper (AoE damage)
+                "paper_storm",
+                // Crawling audit -- ground-traveling line attack
+                "crawling_audit",
+                // Summons 3 Ink Crawlers
+                "summon_ink_crawlers_many",
+            ],
+            transition_text: Some("The Auditor SNAPS his desk in half. He wields the legs like clubs.\n\"YOUR RECORDS ARE INCOMPLETE! I WILL COMPLETE THEM... WITH YOUR BLOOD!\""),
+        ),
+    ],
+
+    sprite_key: "enemies/bosses/the_auditor",
+    sprite_size_px: [64, 80],
+
+    arena_hazards: [
+        // File cabinets that can be knocked over (block movement until destroyed)
+        "file_cabinet_destructible",
+        // Ink pools from Phase 2+ that slow movement
+        "ink_pool_hazard",
+        // Collapsed tunnel sections (permanent walls)
+        "collapsed_tunnel",
+    ],
+
+    bark_lines: [
+        // On aggro
+        BossBark(
+            trigger: "aggro",
+            line: "Ah, a new file. Let me examine your... credentials.",
+        ),
+        // Paperwork fan attack
+        BossBark(
+            trigger: "paperwork_fan",
+            line: "Form 1099... Form W-2... Form YOUR DEATH CERTIFICATE.",
+        ),
+        // Phase 2 transition
+        BossBark(
+            trigger: "phase_transition_2",
+            line: "I see discrepancies. MANY discrepancies.",
+        ),
+        // Desk slam
+        BossBark(
+            trigger: "desk_slam",
+            line: "MY DESK IS MY AUTHORITY!",
+        ),
+        // Summoning adds
+        BossBark(
+            trigger: "summon_adds",
+            line: "Crawlers! Verify this taxpayer's documents!",
+        ),
+        // Phase 3 transition
+        BossBark(
+            trigger: "phase_transition_3",
+            line: "YOUR RECORDS ARE INCOMPLETE! I WILL COMPLETE THEM... WITH YOUR BLOOD!",
+        ),
+        // Audit frenzy attack
+        BossBark(
+            trigger: "audit_frenzy",
+            line: "AUDIT! AUDIT! EVERYTHING MUST BE AUDITED!",
+        ),
+        // On player death
+        BossBark(
+            trigger: "player_death",
+            line: "Case closed. File under: TERMINATED.",
+        ),
+        // On boss death
+        BossBark(
+            trigger: "death",
+            line: "The records... will outlive... us all...",
+        ),
+        // Idle bark
+        BossBark(
+            trigger: "idle",
+            line: "Your financial history is quite... fascinating.",
+        ),
+        // Player dodges multiple attacks
+        BossBark(
+            trigger: "player_dodge_streak",
+            line: "Tax evasion is a CRIME, taxpayer!",
+        ),
+    ],
+)

@@ -1,0 +1,132 @@
+// =============================================================================
+// CURRENCY TYPES -- The Economy of Taxeclast
+// =============================================================================
+//
+// Seven currency types, each parodying a Path of Exile orb. These are the
+// backbone of the crafting system. Players find them as drops, spend them
+// at the Crafting Bench (with mandatory form-filling), and trade them at
+// NPC shops.
+//
+// The crafting process itself is satirical: select item, choose currency,
+// fill out a "reason for modification" form, wait for "processing," and
+// receive a random result delivered as an official government notice.
+//
+// "Close your eyes and file."
+// =============================================================================
+
+CurrencyTypes(
+    currencies: [
+
+        // =====================================================================
+        // 1. AUDIT NOTICE -- Chaos Orb equivalent
+        // =====================================================================
+        // The workhorse currency. Rerolls all mods on a rare item. Just like
+        // a real audit: everything you had is thrown out and replaced with
+        // something random (and probably worse).
+        CurrencyDef(
+            key: "audit_notice",
+            name: "Audit Notice",
+            description: "Rerolls all modifiers on a rare item. The results are random and final. Just like a real audit -- everything you had is replaced with something you didn't ask for. Appeals are denied.",
+            poe_equivalent: "Chaos Orb",
+            effect: "Reroll all random modifiers on a Rare item",
+            rarity: Rare,
+            stack_max: 20,
+        ),
+
+        // =====================================================================
+        // 2. PREMIUM FILING FEE -- Exalted Orb equivalent
+        // =====================================================================
+        // The prestige currency. Adds a random mod to a rare item. Expensive.
+        // Using one is always a gamble -- "close your eyes and file."
+        // The Filing Fee is non-refundable regardless of outcome.
+        CurrencyDef(
+            key: "premium_filing_fee",
+            name: "Premium Filing Fee",
+            description: "Adds a random modifier to a rare item. Non-refundable. The government thanks you for your generous contribution. 'Close your eyes and file.'",
+            poe_equivalent: "Exalted Orb",
+            effect: "Add a new random modifier to a Rare item (must have open affix slot)",
+            rarity: Unique,            // very rare drop
+            stack_max: 10,
+        ),
+
+        // =====================================================================
+        // 3. REAPPRAISAL ORDER -- Divine Orb equivalent
+        // =====================================================================
+        // Rerolls the VALUES of existing mods without changing which mods
+        // are present. Your "+12% Filing Speed" might become "+23% Filing Speed"
+        // or "+3% Filing Speed." The government reappraises as it sees fit.
+        CurrencyDef(
+            key: "reappraisal_order",
+            name: "Reappraisal Order",
+            description: "Rerolls the numerical values of all modifiers on an item. The mods stay the same, but the numbers change. Your property has been reappraised. 'The assessed value may differ from market value.'",
+            poe_equivalent: "Divine Orb",
+            effect: "Reroll all modifier values within their allowed ranges",
+            rarity: Unique,            // very rare
+            stack_max: 10,
+        ),
+
+        // =====================================================================
+        // 4. AMENDED RETURN -- Orb of Regret equivalent
+        // =====================================================================
+        // Respec a passive tree point. Everyone makes mistakes on their
+        // tax return. This is your correction form. Limited supply ensures
+        // passive choices still matter.
+        CurrencyDef(
+            key: "amended_return",
+            name: "Amended Return",
+            description: "Refund one allocated passive tree point. Because everyone makes filing errors. Section 6402: 'Taxpayers may amend previously filed returns subject to available corrections.'",
+            poe_equivalent: "Orb of Regret",
+            effect: "Unallocate one passive tree node, refunding the point",
+            rarity: Rare,
+            stack_max: 20,
+        ),
+
+        // =====================================================================
+        // 5. COMPLIANCE CERTIFICATE -- Orb of Alchemy equivalent
+        // =====================================================================
+        // Upgrades a Normal (white) item to Rare (yellow) with random mods.
+        // The item has been certified compliant with regulations. It now
+        // has a lot of complicated modifiers nobody asked for.
+        CurrencyDef(
+            key: "compliance_certificate",
+            name: "Compliance Certificate",
+            description: "Upgrades a Normal item to Rare quality with multiple random modifiers. Your item has been certified compliant. It now has many complicated attributes nobody asked for. Working as intended.",
+            poe_equivalent: "Orb of Alchemy",
+            effect: "Upgrade a Normal item to Rare with 4-6 random modifiers",
+            rarity: Magic,
+            stack_max: 20,
+        ),
+
+        // =====================================================================
+        // 6. FORM W-2 -- Transmutation Orb equivalent
+        // =====================================================================
+        // Upgrades a Normal (white) item to Magic (blue) with 1 random mod.
+        // The most basic upgrade. You filled out your W-2. You now have
+        // one modifier to show for it.
+        CurrencyDef(
+            key: "form_w2",
+            name: "Form W-2",
+            description: "Upgrades a Normal item to Magic quality with 1 random modifier. You filled out your W-2. You now have one thing to show for it. Congratulations.",
+            poe_equivalent: "Orb of Transmutation",
+            effect: "Upgrade a Normal item to Magic with 1 random modifier",
+            rarity: Normal,            // common drop
+            stack_max: 40,
+        ),
+
+        // =====================================================================
+        // 7. 1099 CONTRACTOR -- Orb of Augmentation equivalent
+        // =====================================================================
+        // Adds a mod to a Magic (blue) item. Because contractors always
+        // bring something extra. Whether you wanted it is another matter.
+        // The mod is random. The contractor was the lowest bidder.
+        CurrencyDef(
+            key: "1099_contractor",
+            name: "1099 Contractor",
+            description: "Adds a random modifier to a Magic item. The contractor has been hired. They'll add something to your item. What they add is up to them. They were the lowest bidder.",
+            poe_equivalent: "Orb of Augmentation",
+            effect: "Add 1 random modifier to a Magic item (must have open affix slot)",
+            rarity: Normal,            // common
+            stack_max: 40,
+        ),
+    ],
+)

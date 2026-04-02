@@ -1,0 +1,167 @@
+// =============================================================================
+// LEGISLATIVE AMENDMENTS -- Build-Defining Rare Drops
+// =============================================================================
+//
+// The Daedalus Hammer equivalent. Max 2 per run. These fundamentally change
+// HOW a skill works, not just its numbers. They make each run feel radically
+// different. Finding one is a "build-around" moment.
+//
+// "Due to emergency legislation, your abilities have been amended."
+//
+// Each amendment targets a specific ability (or "any" for universals).
+// The behavior_change field describes the qualitative change that must be
+// implemented in code -- stat modifications alone can't capture these.
+// =============================================================================
+
+LegislativeAmendments(
+    amendments: [
+
+        // =====================================================================
+        // 1. RETROACTIVE REFUND -- Tax Bolt boomerang
+        // =====================================================================
+        LegislativeAmendment(
+            key: "retroactive_refund",
+            name: "Retroactive Refund",
+            description: "Tax Bolts now return to the caster after hitting a target, damaging enemies along the return path. Per Section 6511: refunds may be applied retroactively.",
+            target_ability: "tax_bolt",
+            modifications: [
+                // Slight damage reduction since it hits twice
+                StatModification(stat: "base_damage", operation: Multiply, value: 0.8),
+            ],
+            behavior_change: Some("Projectile reverses direction after first hit and travels back to caster, dealing damage to enemies on the return path. Return damage is 60% of initial hit."),
+        ),
+
+        // =====================================================================
+        // 2. ITEMIZED BARRAGE -- Single mega-projectile
+        // =====================================================================
+        LegislativeAmendment(
+            key: "itemized_barrage",
+            name: "Itemized Barrage",
+            description: "Instead of 5 forms in a spread, Form 1040 Barrage fires a single massive consolidated return that pierces all enemies. Itemize for maximum impact.",
+            target_ability: "form_1040_barrage",
+            modifications: [
+                StatModification(stat: "projectile_count", operation: Override, value: 1.0),
+                StatModification(stat: "base_damage", operation: Multiply, value: 3.5),
+                StatModification(stat: "projectile_spread_deg", operation: Override, value: 0.0),
+                StatModification(stat: "pierce_count", operation: Override, value: 99.0),
+            ],
+            behavior_change: Some("Single oversized projectile sprite (3x scale). Pierces all enemies. Slight screen shake on cast. Projectile leaves a brief visual trail."),
+        ),
+
+        // =====================================================================
+        // 3. DEPRECIATING ASSETS -- Beam leaves ground trail
+        // =====================================================================
+        LegislativeAmendment(
+            key: "depreciating_assets",
+            name: "Depreciating Assets",
+            description: "Depreciation Beam now leaves a persistent trail of fiscal decay on the ground. Enemies walking through the trail take damage over time. Assets depreciate wherever you look.",
+            target_ability: "depreciation_beam",
+            modifications: [
+                // Slightly more expensive since it creates lasting value
+                StatModification(stat: "mana_cost", operation: Multiply, value: 1.5),
+            ],
+            behavior_change: Some("Beam creates a ground trail that persists for 5 seconds. Trail deals 3 damage per tick (every 500ms) to enemies standing in it. Trail uses Interest damage type particles (green drip)."),
+        ),
+
+        // =====================================================================
+        // 4. EMERGENCY AUDIT -- Storm follows the player
+        // =====================================================================
+        LegislativeAmendment(
+            key: "emergency_audit",
+            name: "Emergency Audit",
+            description: "Audit Storm now follows the player instead of being placed at a fixed location. The IRS goes where you go. You cannot escape an emergency audit.",
+            target_ability: "audit_storm",
+            modifications: [
+                // Smaller radius since it moves with you
+                StatModification(stat: "aoe_radius", operation: Multiply, value: 0.7),
+                // Longer duration to compensate
+                StatModification(stat: "aoe_duration_ms", operation: Multiply, value: 1.5),
+            ],
+            behavior_change: Some("AoE origin tracks the player's position each tick instead of remaining static. The storm cloud visually follows overhead. Player becomes a walking audit zone."),
+        ),
+
+        // =====================================================================
+        // 5. CAPITAL GAINS -- Teleport leaves an attack clone
+        // =====================================================================
+        LegislativeAmendment(
+            key: "capital_gains",
+            name: "Capital Gains",
+            description: "Capital Loss Teleport now leaves behind a spectral clone that attacks nearby enemies for 3 seconds before vanishing. Turn losses into gains.",
+            target_ability: "capital_loss_teleport",
+            modifications: [
+                // More expensive -- you're getting a clone
+                StatModification(stat: "mana_cost", operation: Add, value: 10.0),
+                StatModification(stat: "cooldown_ms", operation: Multiply, value: 1.3),
+            ],
+            behavior_change: Some("On teleport, spawn a spectral clone at the origin point. Clone uses Tax Bolt at 50% damage every 800ms for 3 seconds, targeting the nearest enemy. Clone is untargetable. Clone uses translucent player sprite."),
+        ),
+
+        // =====================================================================
+        // 6. FULL REFUND -- Shield explodes on break
+        // =====================================================================
+        LegislativeAmendment(
+            key: "full_refund",
+            name: "Full Refund",
+            description: "When Refund Shield breaks, it explodes, dealing all absorbed damage to nearby enemies. You always get your money's worth. Per Section 6402(a).",
+            target_ability: "refund_shield",
+            modifications: [
+                // Shield absorbs less but the explosion compensates
+                StatModification(stat: "shield_amount", operation: Multiply, value: 0.8),
+            ],
+            behavior_change: Some("On shield break (not expiry), deal damage equal to total absorbed damage in a 160px radius AoE around the player. Visual: radial explosion of golden coins/receipts. Screen shake (crit-level). Does not trigger on natural expiry -- shield must be broken by enemy damage."),
+        ),
+
+        // =====================================================================
+        // 7. COMPOUND INTEREST -- Stacking damage on same target
+        // =====================================================================
+        LegislativeAmendment(
+            key: "compound_interest",
+            name: "Compound Interest",
+            description: "Each successive Tax Bolt against the same target deals 15% more damage, stacking up to 5 times. Interest compounds. Debts grow. That is the way.",
+            target_ability: "tax_bolt",
+            modifications: [],
+            behavior_change: Some("Track per-enemy hit counter for Tax Bolt. Each consecutive hit on the same enemy adds a 15% damage multiplier (1.15x, 1.32x, 1.52x, 1.75x, 2.01x at 5 stacks). Counter resets if a different enemy is hit or after 3 seconds without hitting that enemy. Visual: stacking glow effect on the target, intensifying with each stack."),
+        ),
+
+        // =====================================================================
+        // 8. DOUBLE FILING -- Any skill fires twice
+        // =====================================================================
+        LegislativeAmendment(
+            key: "double_filing",
+            name: "Double Filing",
+            description: "Your next equipped ability fires twice but costs 50% more mana. Filing twice is technically illegal, but who's checking?",
+            target_ability: "any",
+            modifications: [
+                StatModification(stat: "mana_cost", operation: Multiply, value: 1.5),
+            ],
+            behavior_change: Some("Ability triggers its active phase twice in rapid succession (second cast at 60% of normal anticipation frames). Second cast uses identical targeting. Does not apply to Dodge Roll. Cooldown only starts after both casts complete."),
+        ),
+
+        // =====================================================================
+        // 9. OFFSHORE PROCESSING -- No mana cost, doubled cooldown
+        // =====================================================================
+        LegislativeAmendment(
+            key: "offshore_processing",
+            name: "Offshore Processing",
+            description: "Your next equipped ability has no mana cost but takes twice as long to cool down. Processing has been moved offshore. It's cheaper but slower.",
+            target_ability: "any",
+            modifications: [
+                StatModification(stat: "mana_cost", operation: Override, value: 0.0),
+                StatModification(stat: "cooldown_ms", operation: Multiply, value: 2.0),
+            ],
+            behavior_change: Some("Ability costs 0 mana but cooldown is doubled. Visual: ability has a subtle blue-green tint (offshore waters). Pairs well with high-cost abilities like Form 1040 Barrage."),
+        ),
+
+        // =====================================================================
+        // 10. TAX BRACKET ESCALATION -- Kill streak damage ramp
+        // =====================================================================
+        LegislativeAmendment(
+            key: "tax_bracket_escalation",
+            name: "Tax Bracket Escalation",
+            description: "Every 10 kills in a room, all damage increases by 10%. Resets when entering a new room. The more you earn, the more you owe... and the more you destroy.",
+            target_ability: "passive",
+            modifications: [],
+            behavior_change: Some("Track kills per room. Every 10 kills, apply a permanent (for that room) 10% damage multiplier to all abilities. Stacks multiplicatively. Visual: player gains a subtle intensifying glow at each bracket. HUD shows current bracket tier. Resets to 0 stacks on room transition. At 5+ stacks, add a faint screen tint and particle aura."),
+        ),
+    ],
+)

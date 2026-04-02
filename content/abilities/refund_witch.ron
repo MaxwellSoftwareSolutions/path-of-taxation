@@ -1,0 +1,296 @@
+// =============================================================================
+// THE REFUND WITCH -- ABILITY KIT
+// =============================================================================
+//
+// Mid-range spellcaster rewarded for repositioning. Abilities themed around
+// refunds, tax policy, and financial magic. She doesn't just cast spells --
+// she files claims, issues audits, and exploits the tax code.
+//
+// "This refund is an illusion, taxpayer."
+//
+// Animation windows: [Anticipation] -> [Active/Hitbox] -> [Recovery] -> [Idle]
+//                                                          ^ cancel into dodge/ability
+// =============================================================================
+
+AbilitySet(
+    character: "refund_witch",
+    abilities: [
+
+        // =====================================================================
+        // SLOT 1: TAX BOLT -- The bread and butter
+        // =====================================================================
+        // A bolt of pure tax law. Low cost, spammable. Every spell caster needs
+        // a reliable pew-pew. This is the Fireball, the Magic Missile, the
+        // Section 7701(a)(1) Rapid Filing.
+        AbilityDef(
+            key: "tax_bolt",
+            name: "Tax Bolt",
+            description: "Fire a bolt of concentrated tax law at a target. Low cost, fast recovery. The IRS's favorite projectile.",
+            damage_type: Audit,
+            ability_type: Projectile,
+
+            base_damage: 15,
+            mana_cost: 10,
+            cooldown_ms: 280,
+
+            // Fast cast -- the spam ability
+            anticipation_frames: 2,     // 33ms -- quick windup
+            active_frames: 3,          // 50ms -- bolt launches
+            recovery_frames: 4,        // 67ms -- can cancel at frame 6
+            cancel_frame: 6,           // cancel into dodge or next ability
+
+            projectile_speed: Some(800.0),
+            projectile_count: Some(1),
+            projectile_spread_deg: Some(0.0),
+            pierce_count: Some(0),
+            projectile_lifetime_ms: Some(1200),
+
+            aoe_radius: None,
+            aoe_duration_ms: None,
+            aoe_tick_interval_ms: None,
+
+            teleport_range: None,
+            dash_speed: None,
+            dash_duration_ms: None,
+
+            shield_amount: None,
+            shield_duration_ms: None,
+            buff_key: None,
+        ),
+
+        // =====================================================================
+        // SLOT 2: AUDIT STORM -- Area denial, the "clear the screen" ability
+        // =====================================================================
+        // Rain audit notices in a target area. Creates a DoT field where
+        // paperwork literally falls from the sky. Enemies standing in the zone
+        // take damage per tick. Great for chokepoints and boss arenas.
+        AbilityDef(
+            key: "audit_storm",
+            name: "Audit Storm",
+            description: "Summon a storm of audit notices at the target location. Enemies within take bureaucratic damage over time. 'Your records are incomplete.'",
+            damage_type: Bureaucracy,
+            ability_type: AoE,
+
+            base_damage: 8,             // per tick
+            mana_cost: 25,
+            cooldown_ms: 2000,
+
+            anticipation_frames: 4,     // 67ms -- raise staff, papers swirl
+            active_frames: 6,          // 100ms -- storm manifests
+            recovery_frames: 6,        // 100ms -- can cancel at frame 11
+            cancel_frame: 11,
+
+            projectile_speed: None,
+            projectile_count: None,
+            projectile_spread_deg: None,
+            pierce_count: None,
+            projectile_lifetime_ms: None,
+
+            aoe_radius: Some(128.0),    // generous area
+            aoe_duration_ms: Some(4000), // 4 seconds of audit hell
+            aoe_tick_interval_ms: Some(500), // damage every 500ms
+
+            teleport_range: None,
+            dash_speed: None,
+            dash_duration_ms: None,
+
+            shield_amount: None,
+            shield_duration_ms: None,
+            buff_key: None,
+        ),
+
+        // =====================================================================
+        // SLOT 3: REFUND SHIELD -- Defensive, with a twist
+        // =====================================================================
+        // Absorb damage, return a percentage as healing when it breaks.
+        // The thematic core of the Refund Witch: she gets her money back.
+        // Near-instant cast so it can be used reactively.
+        AbilityDef(
+            key: "refund_shield",
+            name: "Refund Shield",
+            description: "Conjure a shield of tax refund energy. Absorbs up to 50 damage. When the shield breaks, 30% of absorbed damage is returned as healing. Per Section 6402.",
+            damage_type: Penalty,       // shield doesn't deal damage itself
+            ability_type: Shield,
+
+            base_damage: 0,             // no damage -- it's a shield
+            mana_cost: 20,
+            cooldown_ms: 5000,
+
+            // Near-instant -- this is reactive defense
+            anticipation_frames: 1,     // 17ms -- barely a windup
+            active_frames: 1,          // instant activation
+            recovery_frames: 2,        // 33ms -- can cancel at frame 2
+            cancel_frame: 2,
+
+            projectile_speed: None,
+            projectile_count: None,
+            projectile_spread_deg: None,
+            pierce_count: None,
+            projectile_lifetime_ms: None,
+
+            aoe_radius: None,
+            aoe_duration_ms: None,
+            aoe_tick_interval_ms: None,
+
+            teleport_range: None,
+            dash_speed: None,
+            dash_duration_ms: None,
+
+            shield_amount: Some(50),
+            shield_duration_ms: Some(8000), // 8s or until broken
+            buff_key: Some("refund_shield_active"),
+        ),
+
+        // =====================================================================
+        // SLOT 4: DEPRECIATION BEAM -- Channeled armor shred
+        // =====================================================================
+        // A beam that reduces enemy defenses over time. Hold the button to
+        // channel -- costs mana per tick. The longer you hold, the more their
+        // assets depreciate. Interruptible at any frame.
+        AbilityDef(
+            key: "depreciation_beam",
+            name: "Depreciation Beam",
+            description: "Channel a beam of fiscal depreciation. Target's armor decreases over time. Hold to maintain. Mana drains continuously. 'Your assets are losing value.'",
+            damage_type: Interest,
+            ability_type: Channel,
+
+            base_damage: 5,             // per tick while channeling
+            mana_cost: 3,              // per tick (continuous drain)
+            cooldown_ms: 500,           // short cooldown after release
+
+            anticipation_frames: 3,     // 50ms -- beam charges up
+            active_frames: 999,        // channeled -- runs until interrupted or OOM
+            recovery_frames: 4,        // 67ms -- recovery after releasing
+            cancel_frame: 0,           // can interrupt at any frame during channel
+
+            projectile_speed: None,
+            projectile_count: None,
+            projectile_spread_deg: None,
+            pierce_count: None,
+            projectile_lifetime_ms: None,
+
+            aoe_radius: None,           // beam, not AoE
+            aoe_duration_ms: None,
+            aoe_tick_interval_ms: Some(200), // tick every 200ms while channeling
+
+            teleport_range: None,
+            dash_speed: None,
+            dash_duration_ms: None,
+
+            shield_amount: None,
+            shield_duration_ms: None,
+            buff_key: Some("depreciation_debuff"),
+        ),
+
+        // =====================================================================
+        // SLOT 5: FORM 1040 BARRAGE -- The burst nuke
+        // =====================================================================
+        // Fire 5 tax forms in a spread. High burst, long cooldown. This is the
+        // "delete this elite" button. Long windup means you need to commit.
+        // The forms spread in an arc -- aim it down a corridor for maximum impact.
+        AbilityDef(
+            key: "form_1040_barrage",
+            name: "Form 1040 Barrage",
+            description: "Launch 5 copies of Form 1040 in a devastating spread. High burst damage with a long recovery. 'Have you filed your 1040? You have now.'",
+            damage_type: Expedited,
+            ability_type: Projectile,
+
+            base_damage: 12,            // per projectile (5x = 60 total potential)
+            mana_cost: 35,
+            cooldown_ms: 4000,
+
+            // Long commitment -- high risk, high reward
+            anticipation_frames: 6,     // 100ms -- papers shuffle dramatically
+            active_frames: 8,          // 133ms -- forms fly out in sequence
+            recovery_frames: 8,        // 133ms -- can cancel at frame 15
+            cancel_frame: 15,
+
+            projectile_speed: Some(600.0),
+            projectile_count: Some(5),
+            projectile_spread_deg: Some(45.0), // 45-degree arc spread
+            pierce_count: Some(0),
+            projectile_lifetime_ms: Some(1000),
+
+            aoe_radius: None,
+            aoe_duration_ms: None,
+            aoe_tick_interval_ms: None,
+
+            teleport_range: None,
+            dash_speed: None,
+            dash_duration_ms: None,
+
+            shield_amount: None,
+            shield_duration_ms: None,
+            buff_key: None,
+        ),
+
+        // =====================================================================
+        // SLOT 6: CAPITAL LOSS TELEPORT -- Mobility + area denial
+        // =====================================================================
+        // Teleport to target location, leave a damaging field at origin.
+        // The "get out of jail free" card that also punishes enemies for
+        // standing where you were. The field represents the "capital loss"
+        // you left behind.
+        AbilityDef(
+            key: "capital_loss_teleport",
+            name: "Capital Loss Teleport",
+            description: "Teleport to the target location, leaving behind a field of capital losses at your origin. Enemies in the field take damage. 'Write it off.'",
+            damage_type: Bureaucracy,
+            ability_type: Teleport,
+
+            base_damage: 0,             // teleport itself does no damage
+            mana_cost: 15,
+            cooldown_ms: 3000,
+
+            // Fast escape -- the panic button
+            anticipation_frames: 2,     // 33ms -- brief shimmer
+            active_frames: 1,          // instant teleport
+            recovery_frames: 6,        // 100ms -- landing recovery, cancel at frame 4
+            cancel_frame: 4,
+
+            projectile_speed: None,
+            projectile_count: None,
+            projectile_spread_deg: None,
+            pierce_count: None,
+            projectile_lifetime_ms: None,
+
+            // The field left behind at origin
+            aoe_radius: Some(96.0),
+            aoe_duration_ms: Some(3000), // 3 seconds of damage field
+            aoe_tick_interval_ms: Some(500),
+
+            teleport_range: Some(256.0), // max teleport distance
+            dash_speed: None,
+            dash_duration_ms: None,
+
+            shield_amount: None,
+            shield_duration_ms: None,
+            buff_key: None,
+        ),
+    ],
+
+    // =========================================================================
+    // DODGE ROLL -- "Tax Evasion Roll"
+    // =========================================================================
+    // Not a proper ability but defined here for animation window reference.
+    // No cooldown, no i-frames (PoE2 style). Cancel into ability at frame 7.
+    dodge_roll: (
+        anticipation_frames: 0,
+        active_frames: 6,              // 100ms -- the actual roll, i-frames here
+        recovery_frames: 3,            // 50ms
+        cancel_frame: 7,
+        speed_multiplier: 2.0,         // 2x movement speed during roll
+    ),
+
+    // =========================================================================
+    // BASE STATS
+    // =========================================================================
+    base_stats: (
+        hp: 100,
+        mana: 80,
+        mana_regen_per_sec: 5.0,
+        move_speed: 360.0,             // units per second
+        ability_slots: 6,
+        form_slots: 2,                 // Income Potion + Expenditure Potion
+    ),
+)

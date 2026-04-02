@@ -1,0 +1,242 @@
+// =============================================================================
+// BOSS: COMMISSIONER GEONOR, THE IRON AUDITOR -- Final Boss
+// =============================================================================
+//
+// Zone: The Revenue Manor
+// PoE2 Parody: Count Geonor
+//
+// The final boss of Act 1. Four phases culminating in a transformation into
+// a Loan Shark. This fight is the skill test, the spectacle, the climax.
+// Every mechanic the player has learned is tested here.
+//
+// Commissioner Geonor sentenced you to death for questioning the Tax Code.
+// Now you face him in his own manor. At 33% HP, Oriana (CFO) betrays him
+// and he transforms into something worse.
+//
+// "You are audited, stupid citizen!"
+// =============================================================================
+
+BossDef(
+    key: "commissioner_geonor",
+    name: "Commissioner Geonor",
+    title: "The Iron Auditor",
+    description: "The Commissioner of Revenue for all of Taxeclast. A towering figure in iron-grey armor forged from compressed tax law. He sentenced you to death for the crime of questioning whether any of the systems make sense. In his Revenue Manor, surrounded by frozen assets and penalty stamps the size of tombstones, he will make you understand: the Tax Code is absolute.",
+
+    base_hp: 5000,
+
+    phases: [
+        // =====================================================================
+        // Phase 1: HUMAN FORM (100% - 33% HP)
+        // =====================================================================
+        // Commissioner Geonor fights as a powerful but readable humanoid.
+        // Frozen Asset walls partition the arena. Penalty Slam is his
+        // signature move. Asset Freeze cages the player temporarily.
+        BossPhase(
+            name: "The Iron Auditor",
+            hp_threshold: 1.0,
+            attacks: [
+                // Frozen Asset walls -- creates ice walls that partition arena
+                "frozen_asset_wall",
+                // Penalty Slam -- leaps to player, massive AoE slam
+                "penalty_slam",
+                // Asset Freeze -- targeted cage that roots player for 1.5s
+                "asset_freeze_cage",
+                // Debt Balloons -- floating projectiles that chase slowly
+                "debt_balloons",
+                // Audit Strike -- 3-hit melee combo with increasing range
+                "audit_strike_combo",
+                // Summons Enforcement Agents (2 at a time)
+                "summon_enforcement_agents",
+            ],
+            transition_text: None,
+        ),
+
+        // =====================================================================
+        // INTERMISSION: THE BETRAYAL (33% HP trigger)
+        // =====================================================================
+        // Geonor staggers. Oriana appears, reveals she's been embezzling
+        // the pension fund. She stabs him with a "Letter of Resignation."
+        // He heals to full. He transforms into a Loan Shark.
+        // This is a cutscene phase -- no player combat.
+        BossPhase(
+            name: "The Betrayal",
+            hp_threshold: 0.33,
+            attacks: [
+                // Cinematic -- no attacks, invulnerable during transformation
+                "transformation_cinematic",
+            ],
+            transition_text: Some("Commissioner Geonor staggers, clutching his chest.\n\nOriana steps from the shadows.\n\n\"The pension fund, Commissioner? It's been... reallocated.\nConsider this my letter of resignation.\"\n\nShe drives a golden pen into his back. He SCREAMS.\nHis body WARPS. Bones crack. Teeth sharpen. Fins erupt.\n\nHe heals to full HP. He is no longer human.\n\n\"YOU... WILL... PAY... WITH... INTEREST!\""),
+        ),
+
+        // =====================================================================
+        // FOG PHASE: BUREAUCRATIC OBFUSCATION
+        // =====================================================================
+        // The arena fills with fog (bureaucratic jargon, literally).
+        // Geonor lunges from the fog. You can't see him until he attacks.
+        // Visibility is 25% of normal. Audio cues become critical.
+        // This phase tests the player's listening and reaction skills.
+        BossPhase(
+            name: "Bureaucratic Obfuscation",
+            hp_threshold: 1.0,          // starts at full HP (healed during intermission)
+            attacks: [
+                // Fog fills arena -- reduced visibility
+                "bureaucratic_fog",
+                // Lunge from fog -- fast dash attack with brief telegraph
+                "fog_lunge",
+                // Interest Spike -- ground eruptions in fog
+                "interest_spike_ground",
+                // Fog breath -- cone attack from current position
+                "fog_breath",
+                // Circling -- audio cue only, Geonor circles the arena edge
+                "predatory_circle",
+            ],
+            transition_text: Some("The fog THICKENS. You can barely see your own hands.\nA voice from everywhere: \"In the fog of bureaucracy... no one can hear you file.\""),
+        ),
+
+        // =====================================================================
+        // Phase 2: LOAN SHARK FORM (below 50% of transformed HP)
+        // =====================================================================
+        // Full monster form. Fast, aggressive, uses financial attacks with
+        // compounding mechanics. The fog lifts. Now you can see him and
+        // wish you couldn't.
+        BossPhase(
+            name: "The Loan Shark",
+            hp_threshold: 0.50,
+            attacks: [
+                // Chill of Insolvency -- frost breath cone, large area
+                "chill_of_insolvency",
+                // Interest Rate Spike -- massive slam, creates radial ground spikes
+                "interest_rate_spike_slam",
+                // The Final Audit -- channeled beam that sweeps the arena
+                "the_final_audit_beam",
+                // Compound Interest -- each consecutive hit on player does more damage
+                "compound_interest_strikes",
+                // Debt Collection -- summons ghostly collectors (fast adds)
+                "summon_debt_collectors",
+                // Bankruptcy Wave -- arena-wide attack with 2 safe zones
+                "bankruptcy_wave",
+            ],
+            transition_text: Some("The fog parts. The Loan Shark stands fully revealed.\nTeeth like spreadsheet columns. Eyes like red ink.\n\"THE INTEREST... COMPOUNDS!\""),
+        ),
+    ],
+
+    sprite_key: "enemies/bosses/commissioner_geonor",
+    sprite_size_px: [96, 112],        // large boss, even larger in Loan Shark form
+
+    arena_hazards: [
+        // Frozen Asset walls (Phase 1) -- ice partitions
+        "frozen_asset_wall_hazard",
+        // Penalty stamp craters from slams
+        "penalty_stamp_crater",
+        // Fog vents (Fog Phase) -- emit obscuring fog
+        "fog_vent",
+        // Debt spikes (Phase 2) -- persistent ground damage
+        "debt_spike_hazard",
+        // Broken columns from transformation
+        "manor_rubble",
+    ],
+
+    bark_lines: [
+        // ===== Phase 1: Human Form =====
+        BossBark(
+            trigger: "aggro",
+            line: "You are audited, stupid citizen!",
+        ),
+        BossBark(
+            trigger: "penalty_slam",
+            line: "THE TOUCH OF THE IRS!",
+        ),
+        BossBark(
+            trigger: "asset_freeze",
+            line: "Your assets are FROZEN. By order of the Commission.",
+        ),
+        BossBark(
+            trigger: "debt_balloons",
+            line: "Your debts follow you. They always follow.",
+        ),
+        BossBark(
+            trigger: "phase1_idle",
+            line: "WHAT IN TAXATION HAVE YOU FILED?!",
+        ),
+
+        // ===== Intermission: The Betrayal =====
+        BossBark(
+            trigger: "betrayal_start",
+            line: "Oriana... what are you doing? Those are MY funds!",
+        ),
+        BossBark(
+            trigger: "betrayal_stab",
+            line: "AAAARGH! The pension... you took... the PENSION!",
+        ),
+        BossBark(
+            trigger: "transformation",
+            line: "YOU... WILL... PAY... WITH... INTEREST!",
+        ),
+
+        // ===== Fog Phase =====
+        BossBark(
+            trigger: "fog_start",
+            line: "In the fog of bureaucracy... no one can hear you file.",
+        ),
+        BossBark(
+            trigger: "fog_lunge",
+            line: "FOUND YOU!",
+        ),
+        BossBark(
+            trigger: "fog_circle",
+            line: "I can smell your outstanding balance...",
+        ),
+        BossBark(
+            trigger: "fog_idle",
+            line: "Still solvent, Taxpayer?",
+        ),
+
+        // ===== Phase 2: Loan Shark =====
+        BossBark(
+            trigger: "loan_shark_reveal",
+            line: "THE INTEREST... COMPOUNDS!",
+        ),
+        BossBark(
+            trigger: "chill_of_insolvency",
+            line: "FEEL THE CHILL OF INSOLVENCY!",
+        ),
+        BossBark(
+            trigger: "interest_rate_spike",
+            line: "The rate has been ADJUSTED. UPWARD!",
+        ),
+        BossBark(
+            trigger: "the_final_audit",
+            line: "THIS IS YOUR FINAL AUDIT!",
+        ),
+        BossBark(
+            trigger: "compound_interest",
+            line: "INTEREST! COMPOUNDS! DAILY!",
+        ),
+        BossBark(
+            trigger: "bankruptcy_wave",
+            line: "BANKRUPTCY IS THE ONLY ESCAPE! AND I DENY YOUR APPLICATION!",
+        ),
+
+        // ===== On player death =====
+        BossBark(
+            trigger: "player_death",
+            line: "This refund is an illusion, taxpayer.",
+        ),
+
+        // ===== On boss death =====
+        BossBark(
+            trigger: "death",
+            line: "The Tax Code... is eternal... You cannot... audit... GOD...",
+        ),
+
+        // ===== Phase-specific idle barks =====
+        BossBark(
+            trigger: "low_hp",
+            line: "I will NOT be... liquidated!",
+        ),
+        BossBark(
+            trigger: "player_dodge_streak",
+            line: "Tax evasion! TAX EVASION! SOMEONE FILE A REPORT!",
+        ),
+    ],
+)

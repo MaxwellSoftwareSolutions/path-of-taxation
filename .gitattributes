@@ -1,0 +1,16 @@
+# Images
+*.png filter=lfs diff=lfs merge=lfs -text
+*.aseprite filter=lfs diff=lfs merge=lfs -text
+*.ase filter=lfs diff=lfs merge=lfs -text
+
+# Audio
+*.ogg filter=lfs diff=lfs merge=lfs -text
+*.wav filter=lfs diff=lfs merge=lfs -text
+*.mp3 filter=lfs diff=lfs merge=lfs -text
+
+# Tiled maps
+*.tmx filter=lfs diff=lfs merge=lfs -text
+*.tsx filter=lfs diff=lfs merge=lfs -text
+
+# 3D source
+*.blend filter=lfs diff=lfs merge=lfs -text

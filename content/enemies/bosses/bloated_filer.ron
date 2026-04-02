@@ -1,0 +1,108 @@
+// =============================================================================
+// BOSS: THE BLOATED FILER -- Tutorial Boss
+// =============================================================================
+//
+// Zone: The Clearfile
+// PoE2 Parody: The Bloated Miller
+//
+// The first boss. Slow, telegraphed, teaches the player that bosses have
+// patterns and phases. He's a massive swollen bureaucrat wielding an oversized
+// rubber stamp. Everything he does is slow and readable -- the point is to
+// teach dodge timing, not to kill the player.
+//
+// Design philosophy: a new player should beat this on their first try if
+// they've been paying attention. A veteran should feel powerful stomping him.
+//
+// "STAMP OF APPROVAL... DENIED!"
+// =============================================================================
+
+BossDef(
+    key: "bloated_filer",
+    name: "The Bloated Filer",
+    title: "Keeper of Overdue Returns",
+    description: "A grotesquely swollen bureaucrat, bloated from decades of consuming rejected tax returns. His rubber stamp is the size of a desk. He moves slowly but strikes with the weight of the entire filing system behind him. Once, he was Employee of the Month. That was thirty years and five hundred pounds ago.",
+
+    base_hp: 500,
+
+    phases: [
+        // Phase 1: Simple stamp attacks (100% - 50% HP)
+        BossPhase(
+            name: "Standard Filing",
+            hp_threshold: 1.0,
+            attacks: [
+                // Rubber stamp slam -- big AoE, long telegraph
+                "rubber_stamp_slam",
+                // Paper throw -- slow projectile in player direction
+                "paper_throw",
+                // Shamble toward player
+                "slow_advance",
+            ],
+            transition_text: None,
+        ),
+
+        // Phase 2: Enraged, faster stamps, adds paper trail (50% - 0% HP)
+        BossPhase(
+            name: "Overtime Filing",
+            hp_threshold: 0.50,
+            attacks: [
+                // Same stamp slam but 20% faster telegraph
+                "rubber_stamp_slam_fast",
+                // Paper throw -- now fires 3 in a spread
+                "paper_throw_spread",
+                // New: leaves trail of paperwork (ground hazard)
+                "paperwork_trail",
+                // Shamble faster
+                "enraged_advance",
+            ],
+            transition_text: Some("The Bloated Filer ROARS. Stacks of paperwork erupt from the ground.\n\"OVERTIME HAS BEEN... APPROVED!\""),
+        ),
+    ],
+
+    sprite_key: "enemies/bosses/bloated_filer",
+    sprite_size_px: [96, 96],
+
+    arena_hazards: [
+        // Piles of paperwork that block movement (destructible)
+        "paperwork_pile",
+        // Ink puddles that slow the player
+        "ink_puddle",
+    ],
+
+    bark_lines: [
+        // On aggro
+        BossBark(
+            trigger: "aggro",
+            line: "Your filing is... OVERDUE.",
+        ),
+        // Phase 1 -- rubber stamp slam
+        BossBark(
+            trigger: "rubber_stamp_slam",
+            line: "STAMP OF APPROVAL... DENIED!",
+        ),
+        // Phase transition
+        BossBark(
+            trigger: "phase_transition_2",
+            line: "OVERTIME HAS BEEN... APPROVED!",
+        ),
+        // Phase 2 -- enraged
+        BossBark(
+            trigger: "enraged",
+            line: "I HAVE BEEN FILING FOR THIRTY YEARS!",
+        ),
+        // On player death
+        BossBark(
+            trigger: "player_death",
+            line: "Your return has been... stamped. REJECTED.",
+        ),
+        // On boss death
+        BossBark(
+            trigger: "death",
+            line: "My... pension... plan...",
+        ),
+        // Idle bark (said periodically during fight)
+        BossBark(
+            trigger: "idle",
+            line: "Do you have an appointment? I don't see an appointment.",
+        ),
+    ],
+)

@@ -1,0 +1,163 @@
+// =============================================================================
+// BOSS: THE REGULATION KING -- Red Ink Vale Boss
+// =============================================================================
+//
+// Zone: The Red Ink Vale
+// PoE2 Parody: The Rust King
+//
+// The third boss. A towering figure of crystallized regulations, wearing a
+// crown of red tape. He controls the arena through flying penalty notices,
+// radiating mandatory forms, and spinning regulation barriers.
+//
+// This is the skill check boss. If you can beat him, you're ready for Geonor.
+// His attacks cover large areas but have gaps -- the player must find the
+// safe zones and exploit the openings.
+//
+// "COMPLIANCE IS NOT OPTIONAL!"
+// =============================================================================
+
+BossDef(
+    key: "regulation_king",
+    name: "The Regulation King",
+    title: "Sovereign of the Red Ink Vale",
+    description: "Once a humble regulator, now a towering monarch of crystallized bureaucracy. His body is encrusted with fossilized regulations. His crown is woven from centuries of red tape. Every decree he issues becomes law -- and his decrees are all penalties.",
+
+    base_hp: 2000,
+
+    phases: [
+        // Phase 1: Flying Penalty Notices (100% - 66% HP)
+        // Conjures penalty notices that fly at the player from multiple angles.
+        // Teaches arena awareness -- threats come from everywhere.
+        BossPhase(
+            name: "Regulatory Decree",
+            hp_threshold: 1.0,
+            attacks: [
+                // Conjures 3-5 penalty notices that fly at player sequentially
+                "flying_penalty_notices",
+                // Stomps, creating a radial shockwave of red ink
+                "regulation_stomp",
+                // Summons a Bureaucratic Bramble at a strategic location
+                "summon_bramble",
+                // Throws a single large penalty scroll (slow, high damage)
+                "penalty_scroll_throw",
+            ],
+            transition_text: None,
+        ),
+
+        // Phase 2: Mandatory Forms Radiate (66% - 33% HP)
+        // Forms radiate outward from the boss in expanding rings.
+        // Player must dodge through the gaps between forms.
+        // Adds ground hazards and more aggressive summoning.
+        BossPhase(
+            name: "Mandatory Compliance",
+            hp_threshold: 0.66,
+            attacks: [
+                // Expanding ring of forms with gaps (bullet-hell lite)
+                "mandatory_form_rings",
+                // Flying penalties now come in pairs
+                "flying_penalty_notices_double",
+                // Red ink geysers -- targeted ground eruptions
+                "red_ink_geyser",
+                // Summons Red Tape Weavers as adds
+                "summon_weavers",
+                // Regulation slam -- jumps to player location
+                "regulation_leap_slam",
+            ],
+            transition_text: Some("The Regulation King raises his crown. Red ink ERUPTS from the ground.\n\"NEW REGULATIONS ARE NOW IN EFFECT. COMPLIANCE IS MANDATORY.\""),
+        ),
+
+        // Phase 3: Spinning Regulations (33% - 0% HP)
+        // Regulations spin around him like a sawblade barrier. Player must
+        // find windows to attack. He's also still doing rings and penalties.
+        // The "oh god" phase where everything happens at once.
+        BossPhase(
+            name: "Total Regulation",
+            hp_threshold: 0.33,
+            attacks: [
+                // Spinning regulation barrier (orbiting projectile shield)
+                "spinning_regulations",
+                // Faster mandatory form rings with narrower gaps
+                "mandatory_form_rings_fast",
+                // Regulation beam -- sweeping laser of red ink
+                "regulation_beam_sweep",
+                // Summons both Brambles and Weavers
+                "summon_bramble_and_weavers",
+                // Penalty rain -- random AoE indicators across arena
+                "penalty_rain",
+                // Enrage stomp -- arena-wide shockwave with safe zone near boss
+                "enrage_stomp",
+            ],
+            transition_text: Some("The Regulation King begins to SPIN. Regulations orbit him like a storm.\n\"YOU CANNOT ESCAPE REGULATION! COMPLIANCE IS NOT OPTIONAL!\""),
+        ),
+    ],
+
+    sprite_key: "enemies/bosses/regulation_king",
+    sprite_size_px: [80, 96],
+
+    arena_hazards: [
+        // Pillars of Red Tape -- destructible cover
+        "red_tape_pillar",
+        // Red ink rivers -- slow zones
+        "red_ink_river",
+        // Collapsed regulation stones -- permanent walls
+        "regulation_rubble",
+    ],
+
+    bark_lines: [
+        // On aggro
+        BossBark(
+            trigger: "aggro",
+            line: "You dare enter MY jurisdiction? You are OUT of compliance.",
+        ),
+        // Flying penalty notices
+        BossBark(
+            trigger: "flying_penalties",
+            line: "PENALTY NOTICE: Failure to comply. Fine: YOUR LIFE.",
+        ),
+        // Phase 2 transition
+        BossBark(
+            trigger: "phase_transition_2",
+            line: "NEW REGULATIONS ARE NOW IN EFFECT. COMPLIANCE IS MANDATORY.",
+        ),
+        // Mandatory form rings
+        BossBark(
+            trigger: "mandatory_forms",
+            line: "Fill out Form 27-B! And Form 27-C! AND FORM 27-D THROUGH Z!",
+        ),
+        // Phase 3 transition
+        BossBark(
+            trigger: "phase_transition_3",
+            line: "COMPLIANCE IS NOT OPTIONAL!",
+        ),
+        // Spinning regulations
+        BossBark(
+            trigger: "spinning_regulations",
+            line: "THE LAW REVOLVES AROUND ME!",
+        ),
+        // Regulation beam
+        BossBark(
+            trigger: "regulation_beam",
+            line: "REGULATORY OVERSIGHT: MAXIMUM INTENSITY!",
+        ),
+        // On player death
+        BossBark(
+            trigger: "player_death",
+            line: "Non-compliance detected. Penalty: PERMANENT.",
+        ),
+        // On boss death
+        BossBark(
+            trigger: "death",
+            line: "But... the regulations... were supposed to be... eternal...",
+        ),
+        // Idle bark
+        BossBark(
+            trigger: "idle",
+            line: "Every breath you take is taxable under Section 14(c).",
+        ),
+        // Player dodges through form rings
+        BossBark(
+            trigger: "player_dodge_streak",
+            line: "You found a LOOPHOLE?! IMPOSSIBLE!",
+        ),
+    ],
+)
