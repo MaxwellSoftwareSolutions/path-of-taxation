@@ -8,7 +8,10 @@ use crate::app_state::AppState;
 use crate::components::combat::{Damage, Hitbox, Hurtbox, Projectile};
 use crate::components::enemy::*;
 use crate::components::player::{AnimationTimer, Health, Player};
+use crate::content::CombatFeelConfig;
 use crate::plugins::combat::HitboxLifetime;
+use crate::plugins::run::{ArenaCollision, resolve_world_collision};
+use crate::plugins::vfx::gameplay_unfrozen;
 use crate::plugins::vfx::{KillSlowMoMsg, ParticleBurstMsg};
 use crate::rendering::isometric::WorldPosition;
 use crate::rendering::sprites::{SpriteAssets, CharacterAtlasLayout};
@@ -28,8 +31,8 @@ impl Plugin for EnemiesPlugin {
                 stagger_system,
                 enemy_death_system,
                 dying_dissolution_system,
-            ).chain().run_if(in_state(AppState::Run)))
-            .add_systems(Update, enemy_animation_system.run_if(in_state(AppState::Run)));
+            ).chain().run_if(gameplay_unfrozen).run_if(in_state(AppState::Run)))
+            .add_systems(Update, enemy_animation_system.run_if(gameplay_unfrozen).run_if(in_state(AppState::Run)));
     }
 }
 
@@ -44,6 +47,7 @@ pub struct SpawnEnemyMsg {
     pub aggro_range: f32,
     pub attack_range: f32,
     pub attack_cooldown_frames: u32,
+    pub windup_frames: u32,
     pub behavior: EnemyBehavior,
 }
 
@@ -85,6 +89,7 @@ fn enemy_spawn_system(
                 current_frames: 0,
                 max_frames: msg.attack_cooldown_frames,
             },
+            AttackWindupFrames(msg.windup_frames),
             AttackRange(msg.attack_range),
             Variant::default(),
             // Combat, animation, and rendering.
@@ -117,12 +122,14 @@ fn enemy_ai_system(
         &MoveSpeed,
         &AggroRange,
         &AttackRange,
+        &AttackWindupFrames,
         &mut AttackCooldown,
         &mut WorldPosition,
         Option<&Staggered>,
         Option<&ActiveAttacker>,
     ), (With<Enemy>, Without<Dying>, Without<Player>)>,
     player_query: Query<&WorldPosition, With<Player>>,
+    arena: Option<Res<ArenaCollision>>,
     mut commands: Commands,
     time: Res<Time>,
 ) {
@@ -137,6 +144,7 @@ fn enemy_ai_system(
         move_speed,
         aggro,
         attack_range,
+        windup,
         mut attack_cd,
         mut world_pos,
         staggered,
@@ -159,14 +167,13 @@ fn enemy_ai_system(
             EnemyBehavior::Chase => {
                 ai_chase(&mut ai, &mut world_pos, &mut attack_cd, &mut commands,
                     entity, aggro, attack_range, move_speed.0, dist, dx, dy,
-                    active_attacker.is_some(), time.delta_secs(), 24);
+                    active_attacker.is_some(), time.delta_secs(), windup.0);
             }
             EnemyBehavior::Shamble => {
-                // Same as Chase but 60% speed, longer windup (36 frames).
                 let shamble_speed = move_speed.0 * 0.6;
                 ai_chase(&mut ai, &mut world_pos, &mut attack_cd, &mut commands,
                     entity, aggro, attack_range, shamble_speed, dist, dx, dy,
-                    active_attacker.is_some(), time.delta_secs(), 36);
+                    active_attacker.is_some(), time.delta_secs(), windup.0);
             }
             EnemyBehavior::Swarm => {
                 // Faster (130% speed), flanking approach angle offset by entity index.
@@ -174,30 +181,37 @@ fn enemy_ai_system(
                 let flank_offset = swarm_flank_angle(entity);
                 ai_swarm(&mut ai, &mut world_pos, &mut attack_cd, &mut commands,
                     entity, aggro, attack_range, swarm_speed, dist, dx, dy,
-                    active_attacker.is_some(), time.delta_secs(), flank_offset);
+                    active_attacker.is_some(), time.delta_secs(), flank_offset, windup.0);
             }
             EnemyBehavior::Ranged => {
                 ai_ranged(&mut ai, &mut world_pos, &mut attack_cd, &mut commands,
                     entity, aggro, attack_range, move_speed.0, dist, dx, dy,
-                    active_attacker.is_some(), time.delta_secs());
+                    active_attacker.is_some(), time.delta_secs(), windup.0);
             }
             EnemyBehavior::Kiter => {
                 ai_kiter(&mut ai, &mut world_pos, &mut attack_cd, &mut commands,
                     entity, aggro, attack_range, move_speed.0, dist, dx, dy,
-                    player_pos, active_attacker.is_some(), time.delta_secs());
+                    player_pos, active_attacker.is_some(), time.delta_secs(), windup.0);
             }
             EnemyBehavior::Debuffer => {
                 // Debuffers use ranged AI (fires projectiles from range).
                 // Full debuff effects (slow, silence) are a future task.
                 ai_ranged(&mut ai, &mut world_pos, &mut attack_cd, &mut commands,
                     entity, aggro, attack_range, move_speed.0, dist, dx, dy,
-                    active_attacker.is_some(), time.delta_secs());
+                    active_attacker.is_some(), time.delta_secs(), windup.0);
             }
             EnemyBehavior::Stationary => {
                 // Stationary enemies don't move; they attack when player is in range.
                 ai_stationary(&mut ai, &mut attack_cd, &mut commands,
-                    entity, aggro, attack_range, dist);
+                    entity, aggro, attack_range, dist, windup.0);
             }
+        }
+
+        if let Some(arena) = &arena {
+            let resolved =
+                resolve_world_collision(Vec2::new(world_pos.x, world_pos.y), 14.0, arena);
+            world_pos.x = resolved.x;
+            world_pos.y = resolved.y;
         }
     }
 }
@@ -302,6 +316,7 @@ fn ai_swarm(
     is_active_attacker: bool,
     delta_secs: f32,
     flank_offset: f32,
+    windup_frames: u32,
 ) {
     match ai.state {
         AiState::Idle | AiState::Patrol => {
@@ -338,8 +353,7 @@ fn ai_swarm(
             }
         }
         AiState::Windup => {
-            // Short windup for swarm enemies (24 frames).
-            if ai.state_timer_frames >= 24 {
+            if ai.state_timer_frames >= windup_frames {
                 ai.state = AiState::Attack;
                 ai.state_timer_frames = 0;
                 commands.entity(entity).remove::<AttackFired>();
@@ -384,6 +398,7 @@ fn ai_ranged(
     dy: f32,
     is_active_attacker: bool,
     delta_secs: f32,
+    windup_frames: u32,
 ) {
     let preferred_dist = aggro.0 * 0.7;
 
@@ -421,8 +436,7 @@ fn ai_ranged(
             }
         }
         AiState::Windup => {
-            // Ranged windup: 30 frames (~500ms).
-            if ai.state_timer_frames >= 30 {
+            if ai.state_timer_frames >= windup_frames {
                 ai.state = AiState::Attack;
                 ai.state_timer_frames = 0;
                 commands.entity(entity).remove::<AttackFired>();
@@ -468,6 +482,7 @@ fn ai_kiter(
     _player_pos: &WorldPosition,
     is_active_attacker: bool,
     delta_secs: f32,
+    windup_frames: u32,
 ) {
     let preferred_dist = aggro.0 * 0.7;
 
@@ -502,7 +517,7 @@ fn ai_kiter(
             }
         }
         AiState::Windup => {
-            if ai.state_timer_frames >= 27 {
+            if ai.state_timer_frames >= windup_frames {
                 ai.state = AiState::Attack;
                 ai.state_timer_frames = 0;
                 commands.entity(entity).remove::<AttackFired>();
@@ -553,6 +568,7 @@ fn ai_stationary(
     aggro: &AggroRange,
     attack_range: &AttackRange,
     dist: f32,
+    windup_frames: u32,
 ) {
     match ai.state {
         AiState::Idle | AiState::Patrol => {
@@ -568,7 +584,7 @@ fn ai_stationary(
             }
         }
         AiState::Windup => {
-            if ai.state_timer_frames >= 6 {
+            if ai.state_timer_frames >= windup_frames {
                 ai.state = AiState::Attack;
                 ai.state_timer_frames = 0;
                 commands.entity(entity).remove::<AttackFired>();
@@ -605,6 +621,7 @@ fn enemy_attack_hitbox_system(
         Entity,
         &AiBehavior,
         &BehaviorType,
+        &AttackRange,
         &EnemyDamage,
         &WorldPosition,
         Option<&AttackFired>,
@@ -616,7 +633,7 @@ fn enemy_attack_hitbox_system(
         return;
     };
 
-    for (entity, ai, behavior, enemy_dmg, world_pos, attack_fired) in &mut enemy_query {
+    for (entity, ai, behavior, attack_range, enemy_dmg, world_pos, attack_fired) in &mut enemy_query {
         if ai.state != AiState::Attack || attack_fired.is_some() {
             continue;
         }
@@ -684,14 +701,16 @@ fn enemy_attack_hitbox_system(
             ));
         } else {
             // Melee hitbox (Chase, Shamble, Swarm, Stationary).
+            let strike_distance = attack_range.0.clamp(24.0, 72.0) * 0.58;
+            let strike_radius = (attack_range.0 * 0.52).clamp(18.0, 46.0);
             let hitbox_pos = WorldPosition::new(
-                world_pos.x + dir.x * 25.0,
-                world_pos.y + dir.y * 25.0,
+                world_pos.x + dir.x * strike_distance,
+                world_pos.y + dir.y * strike_distance,
             );
 
             commands.spawn((
                 Hitbox {
-                    radius: 18.0,
+                    radius: strike_radius,
                     faction: pot_shared::types::Faction::Enemy,
                     already_hit: Vec::new(),
                 },
@@ -705,7 +724,7 @@ fn enemy_attack_hitbox_system(
                 hitbox_pos,
                 Sprite {
                     color: Color::srgba(1.0, 0.0, 0.0, 0.4),
-                    custom_size: Some(Vec2::new(36.0, 36.0)),
+                    custom_size: Some(Vec2::splat(strike_radius * 2.0)),
                     ..default()
                 },
                 Transform::default(),
@@ -718,7 +737,7 @@ fn enemy_attack_hitbox_system(
 /// Manage attack telegraph ground indicators.
 /// Spawns a red circle during Windup, despawns it when leaving Windup.
 fn enemy_telegraph_system(
-    enemy_query: Query<(Entity, &AiBehavior, &WorldPosition), (With<Enemy>, Without<Dying>)>,
+    enemy_query: Query<(Entity, &AiBehavior, &BehaviorType, &AttackRange, &WorldPosition), (With<Enemy>, Without<Dying>)>,
     player_query: Query<&WorldPosition, With<Player>>,
     telegraph_query: Query<(Entity, &AttackTelegraph)>,
     mut commands: Commands,
@@ -733,7 +752,7 @@ fn enemy_telegraph_system(
         .map(|(te, at)| (at.owner, te))
         .collect();
 
-    for (entity, ai, world_pos) in &enemy_query {
+    for (entity, ai, behavior, attack_range, world_pos) in &enemy_query {
         let has_telegraph = telegraphed_owners.iter().find(|(owner, _)| *owner == entity);
 
         if ai.state == AiState::Windup {
@@ -748,9 +767,25 @@ fn enemy_telegraph_system(
                     Vec2::new(0.0, -1.0)
                 };
 
+                let telegraph_distance = if matches!(
+                    behavior.0,
+                    EnemyBehavior::Ranged | EnemyBehavior::Kiter | EnemyBehavior::Debuffer
+                ) {
+                    attack_range.0.clamp(32.0, 120.0) * 0.35
+                } else {
+                    attack_range.0.clamp(24.0, 72.0) * 0.58
+                };
+                let telegraph_size = if matches!(
+                    behavior.0,
+                    EnemyBehavior::Ranged | EnemyBehavior::Kiter | EnemyBehavior::Debuffer
+                ) {
+                    Vec2::new(28.0, 28.0)
+                } else {
+                    Vec2::splat((attack_range.0 * 1.05).clamp(36.0, 92.0))
+                };
                 let telegraph_pos = WorldPosition::new(
-                    world_pos.x + dir.x * 25.0,
-                    world_pos.y + dir.y * 25.0,
+                    world_pos.x + dir.x * telegraph_distance,
+                    world_pos.y + dir.y * telegraph_distance,
                 );
 
                 commands.spawn((
@@ -758,7 +793,7 @@ fn enemy_telegraph_system(
                     telegraph_pos,
                     Sprite {
                         color: Color::srgba(1.0, 0.0, 0.0, 0.25),
-                        custom_size: Some(Vec2::new(40.0, 40.0)),
+                        custom_size: Some(telegraph_size),
                         ..default()
                     },
                     Transform::default(),
@@ -784,16 +819,8 @@ fn crowd_management_system(
         return;
     };
 
-    let active_count = active_query.iter().count();
-
-    if active_count >= MAX_ACTIVE_ATTACKERS {
-        return;
-    }
-
-    // Sort enemies by distance to player, assign closest as active attackers.
     let mut candidates: Vec<(Entity, f32)> = enemy_query
         .iter()
-        .filter(|(e, _)| !active_query.contains(*e))
         .map(|(e, pos)| {
             let dist = pos.distance_to(player_pos);
             (e, dist)
@@ -802,9 +829,20 @@ fn crowd_management_system(
 
     candidates.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
 
-    let slots_available = MAX_ACTIVE_ATTACKERS - active_count;
-    for (entity, _) in candidates.iter().take(slots_available) {
-        commands.entity(*entity).insert(ActiveAttacker);
+    let selected: std::collections::HashSet<Entity> = candidates
+        .iter()
+        .take(MAX_ACTIVE_ATTACKERS)
+        .map(|(entity, _)| *entity)
+        .collect();
+
+    for entity in active_query.iter() {
+        if !selected.contains(&entity) {
+            commands.entity(entity).remove::<ActiveAttacker>();
+        }
+    }
+
+    for entity in selected {
+        commands.entity(entity).insert(ActiveAttacker);
     }
 }
 
@@ -825,6 +863,7 @@ fn stagger_system(
 /// Triggers slow-motion when the last enemy dies.
 fn enemy_death_system(
     query: Query<(Entity, &Health, &WorldPosition), (With<Enemy>, Without<Dying>)>,
+    feel: Res<CombatFeelConfig>,
     mut death_msgs: MessageWriter<EnemyDeathMsg>,
     mut particle_msgs: MessageWriter<ParticleBurstMsg>,
     mut slow_mo_msgs: MessageWriter<KillSlowMoMsg>,
@@ -858,7 +897,9 @@ fn enemy_death_system(
             .remove::<ActiveAttacker>()
             .remove::<Hurtbox>()
             .remove::<AttackFired>()
-            .insert(Dying::default());
+            .insert(Dying {
+                frames_remaining: feel.death_dissolve_frames,
+            });
 
         // Also despawn any telegraphs owned by this enemy (handled in telegraph_system
         // next frame, but clean up immediately for responsiveness).
@@ -867,8 +908,8 @@ fn enemy_death_system(
     // If all remaining alive enemies are dying this frame, trigger slow-mo.
     if !dying_this_frame.is_empty() && alive_count == 0 {
         slow_mo_msgs.write(KillSlowMoMsg {
-            frames: 30,
-            time_scale: 0.3,
+            frames: feel.last_enemy_slowmo_frames,
+            time_scale: feel.last_enemy_slowmo_speed,
         });
     }
 }

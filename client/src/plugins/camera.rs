@@ -1,7 +1,10 @@
 use bevy::prelude::*;
 use bevy::post_process::bloom::Bloom;
 
+use crate::content::CombatFeelConfig;
 use crate::components::player::Player;
+use crate::plugins::input::GameInput;
+use crate::plugins::vfx::HitstopState;
 use crate::rendering::isometric::WorldPosition;
 
 pub struct CameraPlugin;
@@ -55,17 +58,40 @@ impl CameraTarget {
 
 /// Follow the player entity smoothly.
 fn follow_player_system(
+    game_input: Res<GameInput>,
+    feel: Res<CombatFeelConfig>,
+    hitstop: Res<HitstopState>,
     player_query: Query<&WorldPosition, With<Player>>,
     mut camera_target: ResMut<CameraTarget>,
     mut camera_query: Query<&mut Transform, With<MainCamera>>,
 ) {
+    if hitstop.is_active() {
+        return;
+    }
+
     let Ok(world_pos) = player_query.single() else {
         return;
     };
 
-    // Convert player world position to screen position.
     let screen_pos = crate::rendering::isometric::world_to_screen(world_pos.x, world_pos.y);
-    camera_target.position = screen_pos;
+
+    let cursor_delta = game_input.mouse_screen_pos - screen_pos;
+    let cursor_lead = if cursor_delta.length_squared() > 4.0 {
+        cursor_delta.normalize() * feel.camera_cursor_lead_px
+    } else {
+        Vec2::ZERO
+    };
+
+    let move_lead = if game_input.move_direction.length_squared() > 0.0 {
+        game_input.move_direction.normalize() * feel.camera_movement_lead_px
+    } else {
+        Vec2::ZERO
+    };
+
+    let desired_target = screen_pos + cursor_lead + move_lead;
+    let lookahead_blend = feel.camera_lookahead_responsiveness.clamp(0.01, 1.0);
+    camera_target.position = camera_target.position.lerp(desired_target, lookahead_blend);
+    camera_target.smoothing = feel.camera_follow_smoothing;
 
     let Ok(mut cam_transform) = camera_query.single_mut() else {
         return;
@@ -158,9 +184,11 @@ impl ShakeQueue {
 
 /// Apply screen shake offset to the camera each frame.
 fn camera_shake_system(
+    feel: Res<CombatFeelConfig>,
     mut shake_queue: ResMut<ShakeQueue>,
     mut camera_query: Query<&mut Transform, With<MainCamera>>,
 ) {
+    shake_queue.max_offset = feel.shake_max_total_intensity;
     let offset = shake_queue.combined_offset();
 
     // Advance all shake entries and remove finished ones.
@@ -190,6 +218,8 @@ pub struct CameraZoomPulse {
     pub frames_remaining: u32,
     /// How quickly to return to 1.0.
     pub return_speed: f32,
+    /// Base orthographic projection scale (lower = more zoomed in).
+    pub base_ortho_scale: f32,
 }
 
 impl Default for CameraZoomPulse {
@@ -199,6 +229,7 @@ impl Default for CameraZoomPulse {
             current_scale: 1.0,
             frames_remaining: 0,
             return_speed: 0.15,
+            base_ortho_scale: 0.85,
         }
     }
 }
@@ -230,6 +261,6 @@ fn camera_zoom_pulse_system(
         return;
     };
     if let Projection::Orthographic(ref mut ortho) = *proj {
-        ortho.scale = 1.0 / zoom.current_scale.max(0.01);
+        ortho.scale = zoom.base_ortho_scale / zoom.current_scale.max(0.01);
     }
 }

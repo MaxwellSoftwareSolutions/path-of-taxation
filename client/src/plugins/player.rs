@@ -4,7 +4,10 @@ use pot_shared::types::Direction;
 use crate::app_state::AppState;
 use crate::components::combat::{AbilityState, AnimationPhase, Cooldowns, Hurtbox, SelectedAbility};
 use crate::components::player::*;
-use crate::plugins::input::GameInput;
+use crate::content::{AbilityDefs, CombatFeelConfig};
+use crate::plugins::input::{GameInput, InputBuffer};
+use crate::plugins::run::{ArenaCollision, resolve_world_collision};
+use crate::plugins::vfx::gameplay_unfrozen;
 use crate::rendering::isometric::WorldPosition;
 use crate::rendering::sprites::{SpriteAssets, CharacterAtlasLayout};
 
@@ -25,17 +28,26 @@ impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnEnter(AppState::Run), spawn_player)
             .add_systems(OnExit(AppState::Run), despawn_player)
-            .add_systems(Update, (
-                player_movement_system,
-                dodge_roll_system,
-                player_facing_system,
-                ability_slot_selection_system,
-                invulnerability_tick_system,
-            ).run_if(in_state(AppState::Run)))
-            .add_systems(Update, (
-                player_animation_system,
-                weapon_swing_system,
-            ).run_if(in_state(AppState::Run)));
+            .add_systems(
+                Update,
+                (
+                    invulnerability_tick_system,
+                    ability_slot_selection_system,
+                    player_facing_system,
+                    dodge_roll_start_system,
+                    player_movement_system,
+                    dodge_roll_progression_system,
+                )
+                    .chain()
+                    .run_if(gameplay_unfrozen)
+                    .run_if(in_state(AppState::Run)),
+            )
+            .add_systems(
+                Update,
+                (player_animation_system, weapon_swing_system)
+                    .run_if(gameplay_unfrozen)
+                    .run_if(in_state(AppState::Run)),
+            );
     }
 }
 
@@ -44,15 +56,38 @@ fn spawn_player(
     mut commands: Commands,
     sprite_assets: Res<SpriteAssets>,
     atlas_layout: Res<CharacterAtlasLayout>,
+    ability_defs: Res<AbilityDefs>,
 ) {
+    let base_stats = &ability_defs.base_stats;
+    let dodge_roll = &ability_defs.dodge_roll;
+
     commands.spawn((
         // Identity and stats.
         Player,
-        Health::default(),
-        Mana::default(),
-        MovementSpeed::default(),
+        Health {
+            current: base_stats.hp as f32,
+            max: base_stats.hp as f32,
+        },
+        Mana {
+            current: base_stats.mana as f32,
+            max: base_stats.mana as f32,
+        },
+        MovementSpeed(base_stats.move_speed),
         Facing::default(),
-        DodgeState::default(),
+        AimVector::default(),
+        AimTarget(Vec2::new(0.0, -120.0)),
+        DodgeState {
+            speed: base_stats.move_speed * dodge_roll.speed_multiplier,
+            active_frames: dodge_roll.active_frames,
+            recovery_frames: dodge_roll.recovery_frames,
+            cancel_frame: dodge_roll.cancel_frame,
+            iframe_frames: dodge_roll.active_frames.saturating_sub(1),
+            ..default()
+        },
+        DodgeCooldown {
+            frames_remaining: 0,
+            max_frames: dodge_roll.cooldown_frames.unwrap_or(18),
+        },
         Invulnerable::default(),
         Velocity::default(),
         // Combat and animation.
@@ -90,105 +125,193 @@ fn despawn_player(
     }
 }
 
-/// Move the player based on input (60fps).
-fn player_movement_system(
+fn dodge_roll_start_system(
     game_input: Res<GameInput>,
-    mut query: Query<(&MovementSpeed, &DodgeState, &AbilityState, &mut WorldPosition), With<Player>>,
-    time: Res<Time>,
+    mut buffer: ResMut<InputBuffer>,
+    mut query: Query<
+        (
+            &mut DodgeState,
+            &mut DodgeCooldown,
+            &mut Velocity,
+            &AimVector,
+            &Facing,
+            &AbilityState,
+        ),
+        With<Player>,
+    >,
 ) {
-    let Ok((speed, dodge, ability_state, mut world_pos)) = query.single_mut() else {
+    let Ok((mut dodge, mut cooldown, mut velocity, aim, facing, ability_state)) =
+        query.single_mut()
+    else {
         return;
     };
 
-    // Cannot move during active dodge or non-idle ability phase.
-    if dodge.active || !ability_state.is_idle() {
+    let wants_dodge = game_input.dodge_pressed || buffer.dodge_buffered();
+    if dodge.active || cooldown.frames_remaining > 0 || !wants_dodge {
         return;
     }
 
-    let dir = game_input.move_direction;
+    if !(ability_state.is_idle() || ability_state.can_cancel() || dodge.can_cancel()) {
+        return;
+    }
+
+    let dir = if game_input.move_direction != Vec2::ZERO {
+        game_input.move_direction.normalize()
+    } else if aim.0.length_squared() > 0.001 {
+        aim.0.normalize()
+    } else {
+        facing_to_vec2(&facing.0)
+    };
+
     if dir == Vec2::ZERO {
         return;
     }
 
-    let delta = dir * speed.0 * time.delta_secs();
-    world_pos.x += delta.x;
-    world_pos.y += delta.y;
+    dodge.active = true;
+    dodge.frame = 0;
+    dodge.direction = dir;
+    velocity.0 = dir * dodge.speed;
+    cooldown.frames_remaining = cooldown.max_frames;
+    buffer.consume_dodge();
 }
 
-/// Handle dodge roll initiation and progression.
-fn dodge_roll_system(
+/// Move the player based on authored locomotion values instead of binary on/off control.
+fn player_movement_system(
     game_input: Res<GameInput>,
-    mut query: Query<(
-        &mut DodgeState,
-        &mut Invulnerable,
-        &mut WorldPosition,
-        &AbilityState,
-    ), With<Player>>,
+    feel: Res<CombatFeelConfig>,
+    arena: Option<Res<ArenaCollision>>,
     time: Res<Time>,
+    mut query: Query<(
+        &MovementSpeed,
+        &DodgeState,
+        &AbilityState,
+        &mut DodgeCooldown,
+        &mut Invulnerable,
+        &mut Velocity,
+        &mut WorldPosition,
+    ), With<Player>>,
 ) {
-    let Ok((mut dodge, mut invuln, mut world_pos, ability_state)) = query.single_mut() else {
+    let Ok((speed, dodge, ability_state, mut cooldown, mut invuln, mut velocity, mut world_pos)) =
+        query.single_mut()
+    else {
         return;
     };
 
-    // Initiate dodge if not already dodging and ability allows cancel.
-    if !dodge.active && game_input.dodge_pressed && (ability_state.is_idle() || ability_state.can_cancel()) {
-        let dir = if game_input.move_direction != Vec2::ZERO {
-            game_input.move_direction.normalize()
+    let dt = time.delta_secs();
+    cooldown.frames_remaining = cooldown.frames_remaining.saturating_sub(1);
+
+    if dodge.active {
+        let burst_t = if dodge.active_frames == 0 {
+            1.0
         } else {
-            // Default dodge direction: face direction or south.
-            Vec2::new(0.0, -1.0)
+            (dodge.frame as f32 / dodge.active_frames as f32).clamp(0.0, 1.0)
         };
-        dodge.active = true;
-        dodge.frame = 0;
-        dodge.direction = dir;
+        let burst_speed = if dodge.frame < dodge.active_frames {
+            dodge.speed * (1.0 - burst_t * 0.38)
+        } else {
+            dodge.speed * 0.24
+        };
+
+        velocity.0 = dodge.direction * burst_speed;
+        let desired = Vec2::new(
+            world_pos.x + velocity.0.x * dt,
+            world_pos.y + velocity.0.y * dt,
+        );
+        let resolved = if let Some(arena) = &arena {
+            resolve_world_collision(desired, 12.0, arena)
+        } else {
+            desired
+        };
+        world_pos.x = resolved.x;
+        world_pos.y = resolved.y;
+
+        if dodge.is_in_iframes() {
+            invuln.frames_remaining = invuln.frames_remaining.max(2);
+        }
+        return;
     }
+
+    let move_multiplier = match ability_state.phase {
+        AnimationPhase::Idle => 1.0,
+        AnimationPhase::Recovery => feel.player_recovery_move_multiplier,
+        AnimationPhase::Anticipation | AnimationPhase::Active => feel.player_attack_move_multiplier,
+    };
+
+    let desired_velocity = if game_input.move_direction == Vec2::ZERO {
+        Vec2::ZERO
+    } else {
+        game_input.move_direction.normalize() * speed.0 * move_multiplier
+    };
+
+    if desired_velocity == Vec2::ZERO {
+        velocity.0 = move_vec_toward(velocity.0, Vec2::ZERO, feel.player_deceleration * dt);
+    } else {
+        velocity.0 = move_vec_toward(velocity.0, desired_velocity, feel.player_acceleration * dt);
+    }
+
+    let desired = Vec2::new(world_pos.x + velocity.0.x * dt, world_pos.y + velocity.0.y * dt);
+    let resolved = if let Some(arena) = &arena {
+        resolve_world_collision(desired, 12.0, arena)
+    } else {
+        desired
+    };
+    world_pos.x = resolved.x;
+    world_pos.y = resolved.y;
+}
+
+fn dodge_roll_progression_system(
+    mut query: Query<(&mut DodgeState, &mut Velocity), With<Player>>,
+) {
+    let Ok((mut dodge, mut velocity)) = query.single_mut() else {
+        return;
+    };
 
     if !dodge.active {
         return;
     }
 
-    // Apply dodge movement during active frames.
-    if dodge.frame < DodgeState::ACTIVE_FRAMES {
-        let delta = dodge.direction * dodge.speed * time.delta_secs();
-        world_pos.x += delta.x;
-        world_pos.y += delta.y;
-        // Grant i-frames during active phase.
-        invuln.frames_remaining = 2; // Refreshed each frame during active.
-    }
-
     dodge.frame += 1;
-
-    // End dodge.
     if dodge.is_finished() {
         dodge.active = false;
         dodge.frame = 0;
+        velocity.0 *= 0.35;
     }
 }
 
 /// Update player facing based on gamepad aim, movement direction, or mouse position.
 fn player_facing_system(
     game_input: Res<GameInput>,
-    mut query: Query<(&WorldPosition, &mut Facing), With<Player>>,
+    mut query: Query<(&WorldPosition, &mut Facing, &mut AimVector, &mut AimTarget), With<Player>>,
 ) {
-    let Ok((world_pos, mut facing)) = query.single_mut() else {
+    let Ok((world_pos, mut facing, mut aim, mut aim_target)) = query.single_mut() else {
         return;
     };
 
-    // Priority: gamepad right stick > movement direction > mouse.
-    let dir = if let Some(aim) = game_input.aim_direction {
-        aim
-    } else if game_input.move_direction != Vec2::ZERO {
-        game_input.move_direction
+    let player_world = Vec2::new(world_pos.x, world_pos.y);
+
+    // Priority: gamepad right stick > mouse target > movement direction.
+    let (dir, target) = if let Some(gamepad_aim) = game_input.aim_direction {
+        let normalized = gamepad_aim.normalize_or_zero();
+        (normalized, player_world + normalized * 220.0)
     } else {
-        // Mouse is in screen space; convert to approximate direction from player.
-        let player_screen = crate::rendering::isometric::world_to_screen(world_pos.x, world_pos.y);
-        let diff = game_input.mouse_world_pos - player_screen;
-        if diff.length_squared() > 1.0 {
-            diff.normalize()
+        let mouse_delta = game_input.mouse_world_pos - player_world;
+        if mouse_delta.length_squared() > 9.0 {
+            let normalized = mouse_delta.normalize();
+            (normalized, game_input.mouse_world_pos)
+        } else if game_input.move_direction != Vec2::ZERO {
+            let normalized = game_input.move_direction.normalize();
+            (normalized, player_world + normalized * 120.0)
         } else {
-            return;
+            (aim.0, aim_target.0)
         }
     };
+
+    if dir.length_squared() <= f32::EPSILON {
+        return;
+    }
+
+    aim.0 = dir;
+    aim_target.0 = target;
 
     let angle = dir.y.atan2(dir.x);
     facing.0 = Direction::from_angle(angle);
@@ -225,6 +348,17 @@ fn invulnerability_tick_system(
     }
 }
 
+fn move_vec_toward(current: Vec2, target: Vec2, max_delta: f32) -> Vec2 {
+    let delta = target - current;
+    let distance = delta.length();
+
+    if distance <= max_delta || distance <= f32::EPSILON {
+        target
+    } else {
+        current + delta / distance * max_delta
+    }
+}
+
 /// Map a Direction to the FLARE sprite sheet row index.
 /// Row 0=S, 1=SW, 2=W, 3=NW, 4=N, 5=NE, 6=E, 7=SE.
 fn direction_to_flare_row(dir: Direction) -> u32 {
@@ -242,27 +376,29 @@ fn direction_to_flare_row(dir: Direction) -> u32 {
 
 /// Update the player's TextureAtlas index based on facing direction, movement, and attacks.
 fn player_animation_system(
-    game_input: Res<GameInput>,
+    _game_input: Res<GameInput>,
     mut query: Query<(
         Entity,
         &Facing,
+        &AimVector,
         &DodgeState,
         &AbilityState,
         &WorldPosition,
+        &Velocity,
         &mut AnimationTimer,
         &mut Sprite,
     ), With<Player>>,
     swing_query: Query<&WeaponSwing>,
     mut commands: Commands,
 ) {
-    let Ok((entity, facing, dodge, ability_state, world_pos, mut anim, mut sprite)) = query.single_mut() else {
+    let Ok((entity, facing, aim, dodge, ability_state, world_pos, velocity, mut anim, mut sprite)) = query.single_mut() else {
         return;
     };
 
     let row = direction_to_flare_row(facing.0);
 
     let is_attacking = !ability_state.is_idle();
-    let is_moving = game_input.move_direction != Vec2::ZERO
+    let is_moving = velocity.0.length_squared() > 180.0
         && !dodge.active
         && ability_state.is_idle();
 
@@ -279,7 +415,11 @@ fn player_animation_system(
             && ability_state.frame_in_phase == 0
             && !swing_query.iter().any(|s| s.owner == entity)
         {
-            let dir = facing_to_vec2(&facing.0);
+            let dir = if aim.0.length_squared() > 0.001 {
+                aim.0.normalize()
+            } else {
+                facing_to_vec2(&facing.0)
+            };
             let base_angle = dir.y.atan2(dir.x);
             let screen = crate::rendering::isometric::world_to_screen(world_pos.x, world_pos.y);
 

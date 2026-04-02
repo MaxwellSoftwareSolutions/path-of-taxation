@@ -59,6 +59,10 @@ impl HitstopState {
     }
 }
 
+pub fn gameplay_unfrozen(hitstop: Res<HitstopState>) -> bool {
+    !hitstop.is_active()
+}
+
 fn hitstop_system(
     mut state: ResMut<HitstopState>,
     mut msgs: MessageReader<HitstopMsg>,

@@ -84,7 +84,7 @@ BossDef(
     ],
 
     sprite_key: "enemies/bosses/the_auditor",
-    sprite_size_px: [64, 80],
+    sprite_size_px: (64, 80),
 
     arena_hazards: [
         // File cabinets that can be knocked over (block movement until destroyed)

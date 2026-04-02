@@ -7,7 +7,7 @@ use pot_shared::item_defs::EquipSlot;
 
 use crate::app_state::AppState;
 use crate::components::items::*;
-use crate::components::player::Player;
+use crate::components::player::{Health, Mana, MovementSpeed, Player};
 use crate::plugins::enemies::EnemyDeathMsg;
 use crate::rendering::isometric::WorldPosition;
 
@@ -17,6 +17,8 @@ impl Plugin for LootPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Inventory>()
             .init_resource::<InventoryOpen>()
+            .init_resource::<ComputedStats>()
+            .add_systems(OnEnter(AppState::Run), init_base_stats)
             .add_systems(Update, (
                 loot_drop_system,
                 loot_bob_system,
@@ -24,6 +26,8 @@ impl Plugin for LootPlugin {
                 inventory_toggle_system,
                 inventory_ui_system,
                 inventory_click_system,
+                recalculate_stats,
+                apply_stats_system,
             ).run_if(in_state(AppState::Run)))
             .add_systems(OnExit(AppState::Run), cleanup_inventory_ui);
     }
@@ -57,6 +61,37 @@ impl Default for Inventory {
 /// Whether the inventory overlay is currently visible.
 #[derive(Resource, Default)]
 pub struct InventoryOpen(pub bool);
+
+/// Aggregate stat bonuses from all equipped items.
+#[derive(Resource, Debug)]
+pub struct ComputedStats {
+    pub damage_mult: f32,
+    pub hp_bonus: f32,
+    pub speed_mult: f32,
+    pub mana_bonus: f32,
+    pub crit_bonus: f32,
+}
+
+impl Default for ComputedStats {
+    fn default() -> Self {
+        Self {
+            damage_mult: 1.0,
+            hp_bonus: 0.0,
+            speed_mult: 1.0,
+            mana_bonus: 0.0,
+            crit_bonus: 0.0,
+        }
+    }
+}
+
+/// Snapshot of the player's unmodified stats, captured once at spawn.
+/// Used to avoid stacking bonuses every frame.
+#[derive(Resource, Debug, Clone)]
+pub struct BaseStats {
+    pub max_hp: f32,
+    pub max_mana: f32,
+    pub move_speed: f32,
+}
 
 // ---------------------------------------------------------------------------
 // Marker components for inventory UI
@@ -520,12 +555,96 @@ fn inventory_click_system(
     }
 }
 
-/// Clean up inventory UI when leaving Run state.
+/// Capture the player's base stats at spawn so equipped-item bonuses can be
+/// applied additively/multiplicatively each frame without stacking.
+fn init_base_stats(
+    mut commands: Commands,
+    query: Query<(&Health, &Mana, &MovementSpeed), With<Player>>,
+) {
+    let Ok((health, mana, speed)) = query.single() else {
+        return;
+    };
+    commands.insert_resource(BaseStats {
+        max_hp: health.max,
+        max_mana: mana.max,
+        move_speed: speed.0,
+    });
+}
+
+/// Recalculate aggregate stat bonuses whenever the inventory changes.
+fn recalculate_stats(
+    inventory: Res<Inventory>,
+    mut computed: ResMut<ComputedStats>,
+) {
+    if !inventory.is_changed() {
+        return;
+    }
+
+    let mut damage_pct: f32 = 0.0;
+    let mut hp_flat: f32 = 0.0;
+    let mut speed_pct: f32 = 0.0;
+    let mut mana_flat: f32 = 0.0;
+    let mut crit_pct: f32 = 0.0;
+
+    for item in inventory.equipped.values() {
+        for affix in &item.affixes {
+            match affix.stat.as_str() {
+                "damage_pct" => damage_pct += affix.value,
+                "hp_flat" => hp_flat += affix.value,
+                "speed_pct" => speed_pct += affix.value,
+                "mana_flat" => mana_flat += affix.value,
+                "crit_pct" => crit_pct += affix.value,
+                _ => {} // armor, dodge, life_regen -- future use
+            }
+        }
+    }
+
+    computed.damage_mult = 1.0 + damage_pct / 100.0;
+    computed.hp_bonus = hp_flat;
+    computed.speed_mult = 1.0 + speed_pct / 100.0;
+    computed.mana_bonus = mana_flat;
+    computed.crit_bonus = crit_pct;
+}
+
+/// Each frame, apply computed stat bonuses from equipment to the player entity.
+/// Uses BaseStats so bonuses are relative to the original values and never stack.
+fn apply_stats_system(
+    computed: Res<ComputedStats>,
+    base: Option<Res<BaseStats>>,
+    mut query: Query<(&mut Health, &mut Mana, &mut MovementSpeed), With<Player>>,
+) {
+    let Some(base) = base else {
+        return;
+    };
+    let Ok((mut health, mut mana, mut speed)) = query.single_mut() else {
+        return;
+    };
+
+    let new_max_hp = base.max_hp + computed.hp_bonus;
+    // If max HP changed, adjust current HP proportionally.
+    if (health.max - new_max_hp).abs() > 0.01 {
+        let ratio = health.current / health.max;
+        health.max = new_max_hp;
+        health.current = (ratio * new_max_hp).min(new_max_hp);
+    }
+
+    let new_max_mana = base.max_mana + computed.mana_bonus;
+    if (mana.max - new_max_mana).abs() > 0.01 {
+        let ratio = mana.current / mana.max;
+        mana.max = new_max_mana;
+        mana.current = (ratio * new_max_mana).min(new_max_mana);
+    }
+
+    speed.0 = base.move_speed * computed.speed_mult;
+}
+
+/// Clean up inventory UI and stat resources when leaving Run state.
 fn cleanup_inventory_ui(
     mut commands: Commands,
     query: Query<Entity, With<InventoryUI>>,
     loot_query: Query<Entity, With<LootDrop>>,
     mut inv_open: ResMut<InventoryOpen>,
+    mut computed: ResMut<ComputedStats>,
 ) {
     for entity in &query {
         commands.entity(entity).despawn();
@@ -534,4 +653,7 @@ fn cleanup_inventory_ui(
         commands.entity(entity).despawn();
     }
     inv_open.0 = false;
+    // Reset computed stats so they don't carry over to the next run.
+    *computed = ComputedStats::default();
+    commands.remove_resource::<BaseStats>();
 }

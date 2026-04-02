@@ -59,7 +59,7 @@ BossDef(
     ],
 
     sprite_key: "enemies/bosses/bloated_filer",
-    sprite_size_px: [96, 96],
+    sprite_size_px: (96, 96),
 
     arena_hazards: [
         // Piles of paperwork that block movement (destructible)

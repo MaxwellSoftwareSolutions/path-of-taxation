@@ -7,7 +7,9 @@ use crate::components::player::*;
 use crate::content::{AbilityDefs, CombatFeelConfig};
 use crate::plugins::input::{DebugOverlayVisible, GameInput, InputBuffer};
 use crate::plugins::patch_notes::PatchNoteModifiers;
+use crate::plugins::run::{ArenaCollision, resolve_world_collision};
 use crate::plugins::ui::ComplianceMeter;
+use crate::plugins::vfx::gameplay_unfrozen;
 use crate::plugins::vfx::{
     DamageNumberMsg, HitFlashMsg, HitstopMsg, ParticleBurstMsg, ScreenFlashMsg,
 };
@@ -33,7 +35,7 @@ impl Plugin for CombatPlugin {
                 shield_tick_system,
                 mana_regen_system,
                 knockback_cleanup_system,
-            ).chain().run_if(in_state(AppState::Run)))
+            ).chain().run_if(gameplay_unfrozen).run_if(in_state(AppState::Run)))
             .add_systems(Update,
                 debug_hitbox_visualization_system
                     .run_if(in_state(AppState::Run)),
@@ -144,12 +146,23 @@ fn ability_input_system(
 /// Advance the ability pipeline each frame: anticipation -> active -> recovery -> idle.
 /// On entering Active phase, spawn the appropriate entity type based on ability slot.
 fn ability_pipeline_system(
-    mut query: Query<(Entity, &mut AbilityState, &mut WorldPosition, &Facing), With<Player>>,
+    arena: Option<Res<ArenaCollision>>,
+    mut query: Query<
+        (
+            Entity,
+            &mut AbilityState,
+            &mut WorldPosition,
+            &Facing,
+            &AimVector,
+            &AimTarget,
+        ),
+        With<Player>,
+    >,
     ability_defs: Res<AbilityDefs>,
     mut commands: Commands,
     sprite_assets: Option<Res<SpriteAssets>>,
 ) {
-    for (player_entity, mut state, mut world_pos, facing) in &mut query {
+    for (player_entity, mut state, mut world_pos, facing, aim, aim_target) in &mut query {
         if state.is_idle() {
             continue;
         }
@@ -163,7 +176,17 @@ fn ability_pipeline_system(
                     state.frame_in_phase = 0;
 
                     let slot = state.current_slot.unwrap_or(0);
-                    let dir = facing_to_vec2(&facing.0);
+                    let dir = if aim.0.length_squared() > 0.001 {
+                        aim.0.normalize()
+                    } else {
+                        facing_to_vec2(&facing.0)
+                    };
+                    let clamped_target = clamp_target_range(world_pos.as_vec2(), aim_target.0, 220.0);
+                    let resolved_target = if let Some(arena) = &arena {
+                        resolve_world_collision(clamped_target, 12.0, arena)
+                    } else {
+                        clamped_target
+                    };
 
                     // Look up the ability definition for this slot.
                     let ability_def = ability_defs.get_by_slot(slot);
@@ -196,8 +219,8 @@ fn ability_pipeline_system(
                                 let proj_dir = Vec2::new(angle.cos(), angle.sin());
 
                                 let proj_pos = WorldPosition::new(
-                                    world_pos.x + dir.x * 20.0,
-                                    world_pos.y + dir.y * 20.0,
+                                    world_pos.x + proj_dir.x * 20.0,
+                                    world_pos.y + proj_dir.y * 20.0,
                                 );
 
                                 commands.spawn((
@@ -243,11 +266,7 @@ fn ability_pipeline_system(
                             let base_damage = def.base_damage as f32;
                             let damage_type = def.damage_type;
 
-                            // Spawn AoE zone 100 units in facing direction.
-                            let aoe_pos = WorldPosition::new(
-                                world_pos.x + dir.x * 100.0,
-                                world_pos.y + dir.y * 100.0,
-                            );
+                            let aoe_pos = WorldPosition::new(resolved_target.x, resolved_target.y);
 
                             commands.spawn((
                                 AoeZone {
@@ -345,9 +364,21 @@ fn ability_pipeline_system(
                             let origin_x = world_pos.x;
                             let origin_y = world_pos.y;
 
-                            // Teleport the player forward.
-                            world_pos.x += dir.x * teleport_dist;
-                            world_pos.y += dir.y * teleport_dist;
+                            let teleport_target = clamp_target_range(
+                                world_pos.as_vec2(),
+                                aim_target.0,
+                                teleport_dist,
+                            );
+                            let teleport_target = if let Some(arena) = &arena {
+                                resolve_world_collision(teleport_target, 12.0, arena)
+                            } else {
+                                teleport_target
+                            };
+                            let teleport_dir =
+                                (teleport_target - world_pos.as_vec2()).normalize_or_zero();
+
+                            world_pos.x = teleport_target.x;
+                            world_pos.y = teleport_target.y;
 
                             // Spawn a small AoE field at the origin position.
                             let aoe_radius = def.aoe_radius.unwrap_or(96.0);
@@ -377,7 +408,7 @@ fn ability_pipeline_system(
                                     amount: aoe_damage,
                                     damage_type,
                                     knockback_force: 30.0,
-                                    knockback_dir: dir,
+                                    knockback_dir: teleport_dir,
                                     is_critical: false,
                                 },
                                 WorldPosition::new(origin_x, origin_y),
@@ -534,6 +565,8 @@ fn damage_application_system(
     let player_entity = player_query.single().ok();
 
     for hit in hit_msgs.read() {
+        let is_player_hit = Some(hit.target) == player_entity;
+
         // Check invulnerability.
         if let Ok((mut health, invuln, shield)) = health_query.get_mut(hit.target) {
             if let Some(invuln) = invuln {
@@ -567,10 +600,20 @@ fn damage_application_system(
             });
 
             // Apply stagger to enemies.
-            commands.entity(hit.target).insert(Staggered { frames_remaining: feel.stagger_frames });
+            if !is_player_hit {
+                commands.entity(hit.target).insert(Staggered {
+                    frames_remaining: feel.stagger_frames,
+                });
+            }
 
             // Send VFX messages using combat feel config.
-            let hitstop_frames = if hit.is_critical { feel.hitstop_crit_frames } else { feel.hitstop_normal_frames };
+            let hitstop_frames = if is_player_hit {
+                feel.hitstop_player_hit_frames
+            } else if hit.is_critical {
+                feel.hitstop_crit_frames
+            } else {
+                feel.hitstop_normal_frames
+            };
             hitstop_msgs.write(HitstopMsg {
                 attacker: hit.attacker,
                 target: hit.target,
@@ -598,12 +641,27 @@ fn damage_application_system(
             });
 
             // Screen shake from combat feel config.
-            let shake_intensity = if hit.is_critical { feel.shake_crit_intensity } else { feel.shake_normal_intensity };
-            let shake_frames = if hit.is_critical { feel.shake_crit_frames } else { feel.shake_normal_frames };
-            shake_queue.push(hit.knockback_dir, shake_intensity, shake_frames);
+            if !is_player_hit {
+                let shake_intensity = if hit.is_critical {
+                    feel.shake_crit_intensity
+                } else {
+                    feel.shake_normal_intensity
+                };
+                let shake_frames = if hit.is_critical {
+                    feel.shake_crit_frames
+                } else {
+                    feel.shake_normal_frames
+                };
+                shake_queue.push(hit.knockback_dir, shake_intensity, shake_frames);
+            }
 
             // Red screen flash when the player takes damage.
-            if Some(hit.target) == player_entity {
+            if is_player_hit {
+                shake_queue.push(
+                    -hit.knockback_dir,
+                    feel.shake_player_hit_intensity,
+                    feel.shake_player_hit_frames,
+                );
                 screen_flash_msgs.write(ScreenFlashMsg {
                     color: Color::srgba(0.6, 0.05, 0.05, 0.25),
                 });
@@ -616,14 +674,21 @@ fn damage_application_system(
 
 /// Apply knockback movement with ease-out curve.
 fn knockback_system(
-    mut query: Query<(&mut Knockback, &mut WorldPosition)>,
+    arena: Option<Res<ArenaCollision>>,
+    mut query: Query<(&mut Knockback, &mut WorldPosition, Option<&Hurtbox>)>,
     time: Res<Time>,
 ) {
-    for (mut kb, mut world_pos) in &mut query {
+    for (mut kb, mut world_pos, hurtbox) in &mut query {
         let force = kb.current_force();
         let delta = kb.direction * force * time.delta_secs();
-        world_pos.x += delta.x;
-        world_pos.y += delta.y;
+        let desired = Vec2::new(world_pos.x + delta.x, world_pos.y + delta.y);
+        let resolved = if let Some(arena) = &arena {
+            resolve_world_collision(desired, hurtbox.map_or(12.0, |hurtbox| hurtbox.radius), arena)
+        } else {
+            desired
+        };
+        world_pos.x = resolved.x;
+        world_pos.y = resolved.y;
 
         kb.elapsed_frames += 1;
     }
@@ -704,11 +769,13 @@ fn shield_tick_system(
 
 /// Regenerate mana over time: 5 mana per second.
 fn mana_regen_system(
+    ability_defs: Res<AbilityDefs>,
     mut query: Query<&mut Mana, With<Player>>,
     time: Res<Time>,
 ) {
     for mut mana in &mut query {
-        mana.current = (mana.current + 5.0 * time.delta_secs()).min(mana.max);
+        mana.current = (mana.current + ability_defs.base_stats.mana_regen_per_sec * time.delta_secs())
+            .min(mana.max);
     }
 }
 
@@ -782,5 +849,14 @@ fn facing_to_vec2(dir: &pot_shared::types::Direction) -> Vec2 {
         SW => Vec2::new(-0.707, -0.707),
         W => Vec2::new(-1.0, 0.0),
         NW => Vec2::new(-0.707, 0.707),
+    }
+}
+
+fn clamp_target_range(origin: Vec2, target: Vec2, max_range: f32) -> Vec2 {
+    let delta = target - origin;
+    if delta.length_squared() <= max_range * max_range {
+        target
+    } else {
+        origin + delta.normalize_or_zero() * max_range
     }
 }

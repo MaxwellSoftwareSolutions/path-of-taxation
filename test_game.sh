@@ -7,6 +7,7 @@ GAME_DIR="/home/hex/path-of-taxation"
 SCREENSHOT_DIR="$GAME_DIR/test_screenshots"
 GAME_BIN="$GAME_DIR/target/debug/pot-client"
 WINDOW_NAME="Path of Taxation"
+LOG_FILE="$GAME_DIR/test_screenshots/test_run.log"
 
 mkdir -p "$SCREENSHOT_DIR"
 
@@ -15,7 +16,7 @@ get_window_id() {
 }
 
 wait_for_window() {
-    for i in $(seq 1 30); do
+    for i in $(seq 1 90); do
         WID=$(get_window_id)
         if [ -n "$WID" ]; then
             echo "$WID"
@@ -23,8 +24,15 @@ wait_for_window() {
         fi
         sleep 0.5
     done
-    echo "ERROR: Window not found after 15s" >&2
+    echo "ERROR: Window not found after 45s" >&2
     return 1
+}
+
+launch_game() {
+    cd "$GAME_DIR" || exit 1
+    cargo build --bin pot-client >/dev/null || return 1
+    "$GAME_BIN" >"$LOG_FILE" 2>&1 &
+    echo "$!"
 }
 
 take_screenshot() {
@@ -83,10 +91,8 @@ case "$1" in
         pkill -f pot-client 2>/dev/null
         sleep 0.5
         # Build and launch
-        cd "$GAME_DIR"
-        cargo build --bin pot-client 2>&1 | tail -3
-        cargo run --bin pot-client &>/dev/null &
-        echo "PID: $!"
+        PID=$(launch_game)
+        echo "PID: $PID"
         WID=$(wait_for_window)
         echo "Window ID: $WID"
         sleep 2
@@ -115,8 +121,7 @@ case "$1" in
         echo "=== Testing combat ==="
         pkill -f pot-client 2>/dev/null
         sleep 0.5
-        cd "$GAME_DIR"
-        cargo run --bin pot-client &>/dev/null &
+        launch_game >/dev/null
         WID=$(wait_for_window)
         sleep 3
         take_screenshot "01_initial_spawn"
@@ -134,7 +139,7 @@ case "$1" in
         take_screenshot "03_after_attack"
 
         # Dodge
-        send_key "space"
+        send_key "Shift_L"
         sleep 0.3
         take_screenshot "04_after_dodge"
 
@@ -173,8 +178,7 @@ case "$1" in
         echo "=== Full loop test ==="
         pkill -f pot-client 2>/dev/null
         sleep 0.5
-        cd "$GAME_DIR"
-        cargo run --bin pot-client &>/dev/null &
+        launch_game >/dev/null
         WID=$(wait_for_window)
         sleep 3
         take_screenshot "full_01_spawn"

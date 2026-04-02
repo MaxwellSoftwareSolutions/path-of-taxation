@@ -92,7 +92,7 @@ BossDef(
     ],
 
     sprite_key: "enemies/bosses/regulation_king",
-    sprite_size_px: [80, 96],
+    sprite_size_px: (80, 96),
 
     arena_hazards: [
         // Pillars of Red Tape -- destructible cover

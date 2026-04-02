@@ -96,6 +96,16 @@ impl AttackCooldown {
     }
 }
 
+/// Authored windup time before the enemy's attack is released.
+#[derive(Component, Clone, Debug)]
+pub struct AttackWindupFrames(pub u32);
+
+impl Default for AttackWindupFrames {
+    fn default() -> Self {
+        Self(24)
+    }
+}
+
 /// Enemy is staggered (hit-stunned).
 #[derive(Component, Clone, Debug)]
 pub struct Staggered {

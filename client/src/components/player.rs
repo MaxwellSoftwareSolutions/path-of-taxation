@@ -81,18 +81,54 @@ impl Default for Facing {
     }
 }
 
+/// High-precision aim direction used by attacks and abilities.
+#[derive(Component, Clone, Debug)]
+pub struct AimVector(pub Vec2);
+
+impl Default for AimVector {
+    fn default() -> Self {
+        Self(Vec2::new(0.0, -1.0))
+    }
+}
+
+/// Current target point in world space.
+#[derive(Component, Clone, Debug, Default)]
+pub struct AimTarget(pub Vec2);
+
 /// Current dodge roll state.
 #[derive(Component, Clone, Debug)]
 pub struct DodgeState {
     /// Whether the player is currently in a dodge roll.
     pub active: bool,
-    /// Current frame within the dodge (0..=8).
-    /// Frames 0-5: active i-frames. Frames 6-8: recovery. Cancel at frame 7.
+    /// Current frame within the dodge state.
     pub frame: u32,
     /// Direction of the dodge in world space.
     pub direction: Vec2,
-    /// Speed multiplier during dodge.
+    /// World-space speed during dodge.
     pub speed: f32,
+    /// Frames where dodge movement is active.
+    pub active_frames: u32,
+    /// Frames after the burst where the player is still committed.
+    pub recovery_frames: u32,
+    /// Frame at which other actions may cancel out of the roll.
+    pub cancel_frame: u32,
+    /// Frames of temporary invulnerability.
+    pub iframe_frames: u32,
+}
+
+#[derive(Component, Clone, Debug)]
+pub struct DodgeCooldown {
+    pub frames_remaining: u32,
+    pub max_frames: u32,
+}
+
+impl Default for DodgeCooldown {
+    fn default() -> Self {
+        Self {
+            frames_remaining: 0,
+            max_frames: 18,
+        }
+    }
 }
 
 impl Default for DodgeState {
@@ -101,31 +137,30 @@ impl Default for DodgeState {
             active: false,
             frame: 0,
             direction: Vec2::ZERO,
-            speed: 400.0,
+            speed: 480.0,
+            active_frames: 5,
+            recovery_frames: 6,
+            cancel_frame: 7,
+            iframe_frames: 4,
         }
     }
 }
 
 impl DodgeState {
-    /// Active i-frame window: frames 0..6.
-    pub const ACTIVE_FRAMES: u32 = 6;
-    /// Recovery frames: frames 6..9.
-    pub const RECOVERY_FRAMES: u32 = 3;
-    /// Total frames for a dodge roll.
-    pub const TOTAL_FRAMES: u32 = Self::ACTIVE_FRAMES + Self::RECOVERY_FRAMES;
-    /// Frame at which dodge can be canceled into another action.
-    pub const CANCEL_FRAME: u32 = 7;
+    pub fn total_frames(&self) -> u32 {
+        self.active_frames + self.recovery_frames
+    }
 
     pub fn is_in_iframes(&self) -> bool {
-        self.active && self.frame < Self::ACTIVE_FRAMES
+        self.active && self.frame < self.iframe_frames
     }
 
     pub fn can_cancel(&self) -> bool {
-        self.active && self.frame >= Self::CANCEL_FRAME
+        self.active && self.frame >= self.cancel_frame
     }
 
     pub fn is_finished(&self) -> bool {
-        !self.active || self.frame >= Self::TOTAL_FRAMES
+        !self.active || self.frame >= self.total_frames()
     }
 }
 

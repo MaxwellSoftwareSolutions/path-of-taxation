@@ -38,7 +38,7 @@ Act1BasicEnemies(
             windup_ms: 500,            // generous telegraph for tutorial enemy
 
             sprite_key: "enemies/undead_accountant",
-            sprite_size_px: [48, 64],
+            sprite_size_px: (48, 64),
             is_silhouette_distinct: true, // hunched, one arm raised with calculator
 
             deduction_drop_min: 5,
@@ -69,7 +69,7 @@ Act1BasicEnemies(
             windup_ms: 400,            // brief telegraph
 
             sprite_key: "enemies/paper_shredder",
-            sprite_size_px: [32, 32],
+            sprite_size_px: (32, 32),
             is_silhouette_distinct: true, // small, round, spinning blades
 
             deduction_drop_min: 2,
@@ -100,7 +100,7 @@ Act1BasicEnemies(
             windup_ms: 600,            // long telegraph -- stamp raised high
 
             sprite_key: "enemies/tax_collector",
-            sprite_size_px: [56, 72],
+            sprite_size_px: (56, 72),
             is_silhouette_distinct: true, // big, broad shoulders, stamp overhead
 
             deduction_drop_min: 15,
@@ -131,7 +131,7 @@ Act1BasicEnemies(
             windup_ms: 500,            // ink swells before spitting
 
             sprite_key: "enemies/ink_crawler",
-            sprite_size_px: [40, 40],
+            sprite_size_px: (40, 40),
             is_silhouette_distinct: true, // blobby, tendrils, distinct from round shredder
 
             deduction_drop_min: 8,
@@ -163,7 +163,7 @@ Act1BasicEnemies(
             windup_ms: 0,              // passive damage -- no telegraph needed
 
             sprite_key: "enemies/bureaucratic_bramble",
-            sprite_size_px: [64, 64],
+            sprite_size_px: (64, 64),
             is_silhouette_distinct: true, // wide, bushy, thorny -- nothing else looks like this
 
             deduction_drop_min: 10,
@@ -194,7 +194,7 @@ Act1BasicEnemies(
             windup_ms: 450,            // brief badge flash before firing
 
             sprite_key: "enemies/enforcement_agent",
-            sprite_size_px: [44, 64],
+            sprite_size_px: (44, 64),
             is_silhouette_distinct: true, // upright, suit, visible badge glow
 
             deduction_drop_min: 12,
@@ -226,7 +226,7 @@ Act1BasicEnemies(
             windup_ms: 600,            // visible weaving animation
 
             sprite_key: "enemies/red_tape_weaver",
-            sprite_size_px: [48, 64],
+            sprite_size_px: (48, 64),
             is_silhouette_distinct: true, // flowing ribbons, distinct from enforcement agent's suit
 
             deduction_drop_min: 10,

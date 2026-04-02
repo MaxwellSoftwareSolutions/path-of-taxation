@@ -11,6 +11,7 @@ use bevy::prelude::*;
 
 use app_state::{AppState, CombatPhase};
 use plugins::{
+    audio::AudioPlugin,
     boss::BossPlugin,
     camera::CameraPlugin,
     combat::CombatPlugin,
@@ -30,6 +31,8 @@ use rendering::isometric::IsometricPlugin;
 use rendering::sprites::SpriteGenPlugin;
 
 fn main() {
+    let asset_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../assets");
+
     App::new()
         .add_plugins(
             DefaultPlugins
@@ -39,6 +42,10 @@ fn main() {
                         resolution: (1920, 1080).into(),
                         ..default()
                     }),
+                    ..default()
+                })
+                .set(AssetPlugin {
+                    file_path: asset_path.to_string_lossy().into_owned(),
                     ..default()
                 })
                 .set(ImagePlugin::default_nearest()),
@@ -66,9 +73,13 @@ fn main() {
             BossPlugin,
             LootPlugin,
         ))
+        .add_plugins(AudioPlugin)
         .add_plugins(PatchNotesPlugin)
-        // Boot -> Menu transition (auto-advance for now).
+        // Boot -> Menu transition.
         .add_systems(OnEnter(AppState::Boot), boot_to_menu)
+        // Menu title screen.
+        .add_systems(OnEnter(AppState::Menu), setup_menu)
+        .add_systems(OnExit(AppState::Menu), cleanup_menu)
         // Menu -> Hub transition.
         .add_systems(Update, menu_advance.run_if(in_state(AppState::Menu)))
         // Hub -> Run transition (guarded: don't start run while dialogue/cabinet is open).
@@ -80,10 +91,57 @@ fn main() {
         .run();
 }
 
-/// Auto-advance from Boot straight to Run for testing.
+/// Marker for menu screen UI entities.
+#[derive(Component)]
+struct MenuUI;
+
+/// Advance from Boot to Menu.
 fn boot_to_menu(mut next_state: ResMut<NextState<AppState>>) {
-    // Skip menu and hub -- go straight to combat for testing.
-    next_state.set(AppState::Run);
+    next_state.set(AppState::Menu);
+}
+
+/// Spawn the title screen for the Menu state.
+fn setup_menu(mut commands: Commands) {
+    commands.insert_resource(ClearColor(Color::srgb(0.01, 0.005, 0.005)));
+    commands
+        .spawn((
+            MenuUI,
+            Node {
+                position_type: PositionType::Absolute,
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                flex_direction: FlexDirection::Column,
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                row_gap: Val::Px(24.0),
+                ..default()
+            },
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Text::new("PATH OF TAXATION"),
+                TextFont {
+                    font_size: 64.0,
+                    ..default()
+                },
+                TextColor(Color::srgb(0.9, 0.2, 0.2)),
+            ));
+            parent.spawn((
+                Text::new("Press Enter"),
+                TextFont {
+                    font_size: 22.0,
+                    ..default()
+                },
+                TextColor(Color::srgb(0.6, 0.55, 0.45)),
+            ));
+        });
+}
+
+/// Despawn menu UI entities.
+fn cleanup_menu(mut commands: Commands, query: Query<Entity, With<MenuUI>>) {
+    for entity in &query {
+        commands.entity(entity).despawn();
+    }
 }
 
 /// Press Enter in the menu to go to Hub.

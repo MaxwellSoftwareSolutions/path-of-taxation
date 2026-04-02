@@ -121,7 +121,7 @@ BossDef(
     ],
 
     sprite_key: "enemies/bosses/commissioner_geonor",
-    sprite_size_px: [96, 112],        // large boss, even larger in Loan Shark form
+    sprite_size_px: (96, 112),        // large boss, even larger in Loan Shark form
 
     arena_hazards: [
         // Frozen Asset walls (Phase 1) -- ice partitions

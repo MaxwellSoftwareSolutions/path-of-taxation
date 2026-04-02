@@ -3,12 +3,14 @@ use bevy::prelude::*;
 use pot_shared::enemy_defs::EnemyBehavior;
 
 use crate::app_state::{AppState, CombatPhase};
+use crate::components::combat::Hurtbox;
 use crate::components::enemy::Enemy;
 use crate::components::player::*;
-use crate::content::{EnemyDefs, LoadingTipsDefs};
+use crate::content::{CombatFeelConfig, EnemyDefs, LoadingTipsDefs};
+use crate::plugins::camera::ShakeQueue;
 use crate::plugins::enemies::SpawnEnemyMsg;
 use crate::plugins::vfx::ScreenFlashMsg;
-use crate::rendering::isometric::{world_to_screen, z_layers};
+use crate::rendering::isometric::{WorldPosition, world_to_screen, z_layers};
 
 pub struct RunPlugin;
 
@@ -24,6 +26,7 @@ impl Plugin for RunPlugin {
             .add_systems(Update, (
                 fog_drift_system,
                 vegetation_sway_system,
+                resolve_actor_collisions_system,
                 room_clear_detection_system,
                 win_lose_detection_system,
                 room_transition_system,
@@ -139,6 +142,52 @@ pub struct RoomDoorButton(pub usize);
 #[derive(Component)]
 pub struct ArenaEntity;
 
+#[derive(Resource, Clone, Debug, Default)]
+pub struct ArenaCollision {
+    pub half_extents: Vec2,
+    pub blockers: Vec<ArenaBlocker>,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct ArenaBlocker {
+    pub center: Vec2,
+    pub radius: f32,
+}
+
+pub fn resolve_world_collision(position: Vec2, body_radius: f32, arena: &ArenaCollision) -> Vec2 {
+    let mut resolved = Vec2::new(
+        position
+            .x
+            .clamp(-arena.half_extents.x + body_radius, arena.half_extents.x - body_radius),
+        position
+            .y
+            .clamp(-arena.half_extents.y + body_radius, arena.half_extents.y - body_radius),
+    );
+
+    for blocker in &arena.blockers {
+        let delta = resolved - blocker.center;
+        let distance = delta.length();
+        let min_distance = blocker.radius + body_radius;
+        if distance < min_distance {
+            let normal = if distance <= f32::EPSILON {
+                Vec2::X
+            } else {
+                delta / distance
+            };
+            resolved = blocker.center + normal * min_distance;
+        }
+    }
+
+    Vec2::new(
+        resolved
+            .x
+            .clamp(-arena.half_extents.x + body_radius, arena.half_extents.x - body_radius),
+        resolved
+            .y
+            .clamp(-arena.half_extents.y + body_radius, arena.half_extents.y - body_radius),
+    )
+}
+
 /// Fog drift component for atmospheric fog sprites.
 #[derive(Component)]
 pub struct FogDrift {
@@ -200,9 +249,31 @@ fn setup_run(mut commands: Commands, asset_server: Res<AssetServer>) {
         asset_server.load("sprites/tiles/prop_column_wood.png"),
     ];
 
-    let tile_display = Vec2::new(128.0, 256.0);
-    let tile_spacing: f32 = 88.0;
+    let tile_display = Vec2::new(140.0, 280.0);
+    let tile_spacing: f32 = 78.0;
     let arena_radius: i32 = 7;
+    let arena_half_extents = Vec2::splat(arena_radius as f32 * tile_spacing - 108.0);
+    let mut blockers = Vec::new();
+
+    // === LAYER -1: BACKGROUND TREE SILHOUETTES (behind everything) ===
+    let tree_canopy_handle: Handle<Image> = asset_server.load("sprites/tiles/tree_canopy.png");
+    for i in 0..14 {
+        let angle = (i as f32 / 14.0) * std::f32::consts::TAU + 0.3;
+        let dist = arena_radius as f32 * tile_spacing * 2.0;
+        let wx = angle.cos() * dist;
+        let wy = angle.sin() * dist;
+        let screen = world_to_screen(wx, wy);
+        commands.spawn((
+            ArenaEntity,
+            Sprite {
+                image: tree_canopy_handle.clone(),
+                color: Color::srgba(0.04, 0.06, 0.03, 0.4),
+                custom_size: Some(Vec2::new(350.0, 550.0)),
+                ..default()
+            },
+            Transform::from_translation(Vec3::new(screen.x, screen.y, z_layers::BG_FAR - 20.0)),
+        ));
+    }
 
     // === LAYER 0: EXTRA DARK FADE RING (beyond arena) ===
     // Spawn 2 extra rings of very dark tiles to soften the arena edge into void.
@@ -249,17 +320,17 @@ fn setup_run(mut commands: Commands, asset_server: Res<AssetServer>) {
             let h = tile_hash(row, col);
 
             // Position jitter to break the grid.
-            let jitter_x = ((h % 13) as f32 - 6.0) * 2.5;
-            let jitter_y = (((h >> 3) % 13) as f32 - 6.0) * 2.5;
+            let jitter_x = ((h % 13) as f32 - 6.0) * 6.0;
+            let jitter_y = (((h >> 3) % 13) as f32 - 6.0) * 6.0;
             let world_x = col as f32 * tile_spacing + jitter_x;
             let world_y = row as f32 * tile_spacing + jitter_y;
             let screen = world_to_screen(world_x, world_y);
 
             // Small random rotation to break grid regularity.
-            let rotation = ((h % 30) as f32 - 15.0) * 0.012; // +/- ~10 degrees
+            let rotation = ((h % 30) as f32 - 15.0) * 0.025; // increased rotation
 
             // Scale variation.
-            let scale_var = 1.0 + ((h % 10) as f32 - 5.0) * 0.01; // 0.95 to 1.05
+            let scale_var = 1.0 + ((h % 10) as f32 - 5.0) * 0.03; // 0.85 to 1.15
 
             // Tile selection -- outdoor PoE2 style: mostly dirt/stone with worn patches.
             let tile_idx = if dist >= arena_radius - 1 {
@@ -284,11 +355,11 @@ fn setup_run(mut commands: Commands, asset_server: Res<AssetServer>) {
             let edge_darken = 1.0 - edge_t * 0.4;
             let noise = ((h % 24) as f32 / 24.0) * 0.1 - 0.05;
             let base = (0.40 + noise) * edge_darken;
-            // Warm outdoor tint -- slightly greenish brown like forest floor.
+            // Warm earth tint -- muddy outdoor feel.
             let tint = Color::srgb(
-                base * 0.95,
-                base * 1.0,
-                base * 0.85,
+                base * 0.90,
+                base * 0.82,
+                base * 0.68,
             );
 
             // Z: use row-based offset within the terrain band for proper overlap.
@@ -321,6 +392,34 @@ fn setup_run(mut commands: Commands, asset_server: Res<AssetServer>) {
                 ));
             }
         }
+    }
+
+    // === LAYER 1b: FILL TILES (extra overlap tiles at 0.7x scale) ===
+    for i in 0..40 {
+        let h = tile_hash(i * 17 + 3, i * 29 + 7);
+        let r = ((h % (arena_radius as u32 * 2)) as f32) - arena_radius as f32;
+        let c = (((h >> 6) % (arena_radius as u32 * 2)) as f32) - arena_radius as f32;
+        if r.abs() + c.abs() > arena_radius as f32 {
+            continue;
+        }
+        let wx = c * tile_spacing + ((h % 40) as f32 - 20.0) * 3.0;
+        let wy = r * tile_spacing + (((h >> 4) % 40) as f32 - 20.0) * 3.0;
+        let screen = world_to_screen(wx, wy);
+        let fill_idx = (h % floor_tiles.len() as u32) as usize;
+        let fill_rotation = ((h % 50) as f32 - 25.0) * 0.03;
+        let fill_noise = ((h % 20) as f32 / 20.0) * 0.08 - 0.04;
+        let fill_base = 0.38 + fill_noise;
+        commands.spawn((
+            ArenaEntity,
+            Sprite {
+                image: floor_tiles[fill_idx].clone(),
+                color: Color::srgb(fill_base * 0.90, fill_base * 0.82, fill_base * 0.68),
+                custom_size: Some(tile_display * 0.7),
+                ..default()
+            },
+            Transform::from_translation(Vec3::new(screen.x, screen.y, z_layers::TERRAIN_BASE + 0.5))
+                .with_rotation(Quat::from_rotation_z(fill_rotation)),
+        ));
     }
 
     // === LAYER 2: GROUND DETAIL OVERLAYS (fake puddles, cracks, shadows) ===
@@ -415,6 +514,17 @@ fn setup_run(mut commands: Commands, asset_server: Res<AssetServer>) {
         let screen = world_to_screen(wx, wy);
         let h = tile_hash(wx as i32, wy as i32);
         let pb = 0.28 + ((h % 12) as f32 * 0.01);
+        let blocker_radius = match idx {
+            5 | 7 => 34.0 * scale,
+            1 | 3 | 6 => 28.0 * scale,
+            _ => 22.0 * scale,
+        };
+        if scale >= 0.85 {
+            blockers.push(ArenaBlocker {
+                center: Vec2::new(wx, wy),
+                radius: blocker_radius,
+            });
+        }
         commands.spawn((
             ArenaEntity,
             Sprite {
@@ -442,6 +552,10 @@ fn setup_run(mut commands: Commands, asset_server: Res<AssetServer>) {
     let column_display = Vec2::new(56.0, 112.0);
     let corner_dist = (arena_radius - 1) as f32 * tile_spacing;
     for (wx, wy) in [(corner_dist, 0.0), (-corner_dist, 0.0), (0.0, corner_dist), (0.0, -corner_dist)] {
+        blockers.push(ArenaBlocker {
+            center: Vec2::new(wx, wy),
+            radius: 34.0,
+        });
         let screen = world_to_screen(wx, wy);
         commands.spawn((
             ArenaEntity,
@@ -462,6 +576,38 @@ fn setup_run(mut commands: Commands, asset_server: Res<AssetServer>) {
                 ..default()
             },
             Transform::from_translation(Vec3::new(screen.x, screen.y - 30.0, z_layers::GROUND_PROPS - 0.01)),
+        ));
+    }
+
+    // === LAYER 4a2: RUIN DEBRIS PROPS ===
+    let ruin_debris_assets: Vec<Handle<Image>> = (1..=6)
+        .map(|i| asset_server.load(format!("sprites/tiles/ruin_debris_{:02}.png", i)))
+        .collect();
+    let ruin_positions: &[(f32, f32)] = &[
+        (-220.0, 160.0),
+        (180.0, -200.0),
+        (-310.0, -120.0),
+        (260.0, 180.0),
+        (-60.0, 280.0),
+        (140.0, -310.0),
+        (-280.0, 250.0),
+        (320.0, -80.0),
+    ];
+    for (idx, &(wx, wy)) in ruin_positions.iter().enumerate() {
+        let screen = world_to_screen(wx, wy);
+        let debris_idx = idx % ruin_debris_assets.len();
+        let h = tile_hash(wx as i32, wy as i32);
+        let rotation = ((h % 40) as f32 - 20.0) * 0.04;
+        commands.spawn((
+            ArenaEntity,
+            Sprite {
+                image: ruin_debris_assets[debris_idx].clone(),
+                color: Color::srgb(0.30, 0.28, 0.22),
+                custom_size: Some(Vec2::new(64.0, 64.0)),
+                ..default()
+            },
+            Transform::from_translation(Vec3::new(screen.x, screen.y, z_layers::GROUND_PROPS + 3.0))
+                .with_rotation(Quat::from_rotation_z(rotation)),
         ));
     }
 
@@ -518,6 +664,38 @@ fn setup_run(mut commands: Commands, asset_server: Res<AssetServer>) {
         ));
     }
 
+    // === LAYER 4c: FOREGROUND TREES (depth/parallax) ===
+    for i in 0..10 {
+        let h = tile_hash(i * 31 + 13, i * 47 + 11);
+        let angle = (i as f32 / 10.0) * std::f32::consts::TAU + 0.5;
+        let min_dist = arena_radius as f32 * tile_spacing * 0.85;
+        let max_dist = arena_radius as f32 * tile_spacing * 1.1;
+        let dist_t = (h % 100) as f32 / 100.0;
+        let dist = min_dist + dist_t * (max_dist - min_dist);
+        let wx = angle.cos() * dist;
+        let wy = angle.sin() * dist;
+        let screen = world_to_screen(wx, wy);
+        let sway_speed = 0.15 + ((h % 15) as f32 * 0.01);
+        let sway_phase = (h % 628) as f32 * 0.01;
+        let sway_amp = 2.0 + ((h % 10) as f32 * 0.3);
+        commands.spawn((
+            ArenaEntity,
+            Sprite {
+                image: tree_canopy_handle.clone(),
+                color: Color::srgba(0.15, 0.22, 0.10, 0.7),
+                custom_size: Some(Vec2::new(250.0, 400.0)),
+                ..default()
+            },
+            Transform::from_translation(Vec3::new(screen.x, screen.y, z_layers::FOREGROUND)),
+            VegetationSway {
+                speed: sway_speed,
+                phase: sway_phase,
+                amplitude: sway_amp,
+                base_x: screen.x,
+            },
+        ));
+    }
+
     // === LAYER 5: FOG SPRITES (atmospheric ground fog) ===
     let fog_configs: &[(f32, f32, f32, f32, f32, f32)] = &[
         // (world_x, world_y, width, height, speed, phase)
@@ -531,6 +709,7 @@ fn setup_run(mut commands: Commands, asset_server: Res<AssetServer>) {
         (-200.0, -400.0, 390.0, 185.0, 0.32, 3.5),
     ];
 
+    let fog_texture_handle: Handle<Image> = asset_server.load("sprites/tiles/fog_texture.png");
     for &(wx, wy, fw, fh, speed, phase) in fog_configs {
         let screen = world_to_screen(wx, wy);
         commands.spawn((
@@ -542,7 +721,8 @@ fn setup_run(mut commands: Commands, asset_server: Res<AssetServer>) {
                 base_pos: screen,
             },
             Sprite {
-                color: Color::srgba(0.12, 0.10, 0.08, 0.06),
+                image: fog_texture_handle.clone(),
+                color: Color::srgba(0.15, 0.13, 0.10, 0.05),
                 custom_size: Some(Vec2::new(fw, fh)),
                 ..default()
             },
@@ -571,6 +751,11 @@ fn setup_run(mut commands: Commands, asset_server: Res<AssetServer>) {
             Transform::from_translation(Vec3::new(ox, oy, z_layers::VIGNETTE)),
         ));
     }
+
+    commands.insert_resource(ArenaCollision {
+        half_extents: arena_half_extents,
+        blockers,
+    });
 }
 
 /// Animate fog sprites with gentle sinusoidal drift.
@@ -584,6 +769,53 @@ fn fog_drift_system(
         let offset_y = (t * fog.speed * 0.7 + fog.phase + 1.5).cos() * fog.amplitude.y;
         transform.translation.x = fog.base_pos.x + offset_x;
         transform.translation.y = fog.base_pos.y + offset_y;
+    }
+}
+
+fn resolve_actor_collisions_system(
+    arena: Option<Res<ArenaCollision>>,
+    mut query: Query<(&mut WorldPosition, &Hurtbox)>,
+) {
+    let Some(arena) = arena else {
+        return;
+    };
+
+    let mut combinations = query.iter_combinations_mut();
+    while let Some([(mut a_pos, a_hurtbox), (mut b_pos, b_hurtbox)]) = combinations.fetch_next() {
+        let delta = Vec2::new(b_pos.x - a_pos.x, b_pos.y - a_pos.y);
+        let distance = delta.length();
+        let min_distance = a_hurtbox.radius + b_hurtbox.radius;
+
+        if distance < min_distance && min_distance > 0.0 {
+            let normal = if distance <= f32::EPSILON {
+                Vec2::X
+            } else {
+                delta / distance
+            };
+            let push = (min_distance - distance) * 0.5;
+
+            let a_resolved = resolve_world_collision(
+                Vec2::new(a_pos.x, a_pos.y) - normal * push,
+                a_hurtbox.radius,
+                &arena,
+            );
+            let b_resolved = resolve_world_collision(
+                Vec2::new(b_pos.x, b_pos.y) + normal * push,
+                b_hurtbox.radius,
+                &arena,
+            );
+
+            a_pos.x = a_resolved.x;
+            a_pos.y = a_resolved.y;
+            b_pos.x = b_resolved.x;
+            b_pos.y = b_resolved.y;
+        }
+    }
+
+    for (mut position, hurtbox) in &mut query {
+        let resolved = resolve_world_collision(position.as_vec2(), hurtbox.radius, &arena);
+        position.x = resolved.x;
+        position.y = resolved.y;
     }
 }
 
@@ -894,9 +1126,67 @@ fn cleanup_run(
     enemy_query: Query<Entity, With<Enemy>>,
 ) {
     commands.remove_resource::<RunStateRes>();
+    commands.remove_resource::<ArenaCollision>();
     for entity in arena_query.iter().chain(enemy_query.iter()) {
         commands.entity(entity).despawn();
     }
+}
+
+fn encounter_layout_for_room(room: u32, room_type: RoomType) -> Vec<(&'static str, Vec2)> {
+    match (room, room_type) {
+        (0, RoomType::Combat) => vec![
+            ("undead_accountant", Vec2::new(-180.0, 140.0)),
+            ("paper_shredder", Vec2::new(-60.0, -180.0)),
+            ("paper_shredder", Vec2::new(60.0, -210.0)),
+            ("tax_collector", Vec2::new(220.0, 80.0)),
+        ],
+        (0, RoomType::HardCombat) => vec![
+            ("undead_accountant", Vec2::new(-220.0, 130.0)),
+            ("tax_collector", Vec2::new(200.0, 120.0)),
+            ("paper_shredder", Vec2::new(-120.0, -180.0)),
+            ("paper_shredder", Vec2::new(-10.0, -220.0)),
+            ("paper_shredder", Vec2::new(105.0, -200.0)),
+            ("ink_crawler", Vec2::new(250.0, -40.0)),
+        ],
+        (_, RoomType::Treasure) => vec![
+            ("paper_shredder", Vec2::new(0.0, 180.0)),
+            ("ink_crawler", Vec2::new(180.0, -40.0)),
+        ],
+        (_, RoomType::Rest) => Vec::new(),
+        (1, RoomType::Combat) => vec![
+            ("tax_collector", Vec2::new(-210.0, 110.0)),
+            ("ink_crawler", Vec2::new(210.0, 150.0)),
+            ("paper_shredder", Vec2::new(-120.0, -180.0)),
+            ("paper_shredder", Vec2::new(20.0, -210.0)),
+            ("enforcement_agent", Vec2::new(250.0, -20.0)),
+        ],
+        (_, RoomType::HardCombat) => vec![
+            ("tax_collector", Vec2::new(-230.0, 140.0)),
+            ("tax_collector", Vec2::new(230.0, 120.0)),
+            ("paper_shredder", Vec2::new(-140.0, -170.0)),
+            ("paper_shredder", Vec2::new(-20.0, -220.0)),
+            ("paper_shredder", Vec2::new(110.0, -185.0)),
+            ("ink_crawler", Vec2::new(260.0, -30.0)),
+            ("red_tape_weaver", Vec2::new(0.0, 230.0)),
+        ],
+        _ => vec![
+            ("tax_collector", Vec2::new(-210.0, 125.0)),
+            ("paper_shredder", Vec2::new(-90.0, -165.0)),
+            ("paper_shredder", Vec2::new(60.0, -195.0)),
+            ("ink_crawler", Vec2::new(210.0, 130.0)),
+            ("enforcement_agent", Vec2::new(260.0, -35.0)),
+        ],
+    }
+}
+
+fn fallback_spawn_positions(enemy_count: u32) -> Vec<Vec2> {
+    let radius = 320.0;
+    (0..enemy_count)
+        .map(|i| {
+            let angle = (i as f32 / enemy_count.max(1) as f32) * std::f32::consts::TAU;
+            Vec2::new(angle.cos() * radius, angle.sin() * radius)
+        })
+        .collect()
 }
 
 /// Spawn enemies for the current room using data-driven definitions.
@@ -910,34 +1200,35 @@ fn spawn_room_enemies(
         return;
     };
 
-    // Rotate through all available enemy types for variety.
-    let enemy_keys = [
-        "undead_accountant",
-        "paper_shredder",
-        "tax_collector",
-        "ink_crawler",
-        "enforcement_agent",
-        "red_tape_weaver",
-    ];
-
-    // Use selected room type for enemy count, fall back to default.
-    let enemy_count = if let Some(room_type) = run.selected_room_type {
+    let room_type = run.selected_room_type.unwrap_or(RoomType::Combat);
+    let authored_layout = encounter_layout_for_room(run.current_room, room_type);
+    let enemy_count = if authored_layout.is_empty() {
         room_type.enemy_count(run.current_room)
     } else {
-        3 + run.current_room
+        authored_layout.len() as u32
     };
     run.enemies_this_room = enemy_count;
-    let radius = 350.0;
 
-    for i in 0..enemy_count {
-        let angle = (i as f32 / enemy_count as f32) * std::f32::consts::TAU;
-        let x = angle.cos() * radius;
-        let y = angle.sin() * radius;
+    let fallback_positions = fallback_spawn_positions(enemy_count);
 
-        let key = enemy_keys[i as usize % enemy_keys.len()];
+    for (i, position) in fallback_positions.iter().enumerate().take(enemy_count as usize) {
+        let (key, position) = authored_layout
+            .get(i)
+            .map(|(key, pos)| (*key, *pos))
+            .unwrap_or(("tax_collector", *position));
 
         // Look up enemy stats from loaded definitions; fall back to defaults.
-        let (enemy_type, hp, damage, speed, aggro_range, attack_range, attack_cooldown_frames, behavior) =
+        let (
+            enemy_type,
+            hp,
+            damage,
+            speed,
+            aggro_range,
+            attack_range,
+            attack_cooldown_frames,
+            windup_frames,
+            behavior,
+        ) =
             if let Some(def) = enemy_defs.get_by_key(key) {
                 (
                     def.key.clone(),
@@ -946,7 +1237,8 @@ fn spawn_room_enemies(
                     def.move_speed,
                     def.aggro_range,
                     def.attack_range,
-                    (def.attack_cooldown_ms / 16) as u32, // Convert ms to ~frames at 60fps.
+                    (def.attack_cooldown_ms as f32 / 16.67).round() as u32,
+                    (def.windup_ms as f32 / 16.67).round() as u32,
                     def.behavior,
                 )
             } else {
@@ -958,6 +1250,7 @@ fn spawn_room_enemies(
                     300.0,
                     50.0,
                     60,
+                    24,
                     EnemyBehavior::Chase,
                 )
             };
@@ -971,13 +1264,14 @@ fn spawn_room_enemies(
 
         spawn_msgs.write(SpawnEnemyMsg {
             enemy_type,
-            position: Vec2::new(x, y),
+            position,
             hp: final_hp,
             damage,
             speed,
             aggro_range,
             attack_range,
             attack_cooldown_frames,
+            windup_frames,
             behavior,
         });
     }
@@ -1001,6 +1295,8 @@ fn room_clear_detection_system(
     combat_phase: Res<State<CombatPhase>>,
     mut next_phase: ResMut<NextState<CombatPhase>>,
     mut run_state: Option<ResMut<RunStateRes>>,
+    feel: Res<CombatFeelConfig>,
+    mut shake_queue: ResMut<ShakeQueue>,
     mut screen_flash_msgs: MessageWriter<ScreenFlashMsg>,
 ) {
     if *combat_phase.get() != CombatPhase::Combat {
@@ -1014,6 +1310,7 @@ fn room_clear_detection_system(
             run.deductions_earned += run.enemies_this_room * 10;
             run.rooms_cleared += 1;
             next_phase.set(CombatPhase::RoomClear);
+            shake_queue.push(Vec2::new(0.0, 1.0), feel.room_clear_shake_intensity, feel.room_clear_shake_frames);
             // White screen flash on room clear.
             screen_flash_msgs.write(ScreenFlashMsg {
                 color: Color::srgba(1.0, 1.0, 1.0, 0.8),

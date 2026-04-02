@@ -4,6 +4,7 @@ use crate::app_state::AppState;
 use crate::components::combat::Cooldowns;
 use crate::components::enemy::{Enemy, EnemyType};
 use crate::components::player::*;
+use crate::plugins::run::RoomClearUI;
 
 pub struct UiPlugin;
 
@@ -451,7 +452,7 @@ fn update_enemy_health_bars(
                 },
                 Transform::from_translation(Vec3::new(
                     enemy_transform.translation.x,
-                    enemy_transform.translation.y + 20.0,
+                    enemy_transform.translation.y + 35.0,
                     50.0,
                 )),
             ));
@@ -534,6 +535,7 @@ fn update_compliance_bar(
 fn death_screen_system(
     player_query: Query<&Health, With<Player>>,
     death_query: Query<Entity, With<DeathScreen>>,
+    room_clear_query: Query<Entity, With<RoomClearUI>>,
     run_state: Option<Res<crate::plugins::run::RunStateRes>>,
     enemy_query: Query<&EnemyType, With<Enemy>>,
     time: Res<Time>,
@@ -544,6 +546,10 @@ fn death_screen_system(
     };
 
     if health.is_dead() && death_query.is_empty() {
+        // Despawn any lingering room clear UI so it doesn't overlap death screen.
+        for entity in &room_clear_query {
+            commands.entity(entity).despawn();
+        }
         // Gather run stats for the death screen.
         let rooms_completed = run_state.as_ref().map(|r| r.rooms_cleared).unwrap_or(0);
         let deductions = run_state.as_ref().map(|r| r.deductions_earned).unwrap_or(0);

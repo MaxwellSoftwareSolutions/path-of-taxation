@@ -3,7 +3,9 @@ use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::window::PrimaryWindow;
 
 use crate::app_state::AppState;
+use crate::content::CombatFeelConfig;
 use crate::plugins::camera::MainCamera;
+use crate::rendering::isometric::screen_to_world;
 
 pub struct InputPlugin;
 
@@ -29,7 +31,9 @@ pub struct GameInput {
     pub move_direction: Vec2,
     /// Whether dodge was pressed this frame.
     pub dodge_pressed: bool,
-    /// Mouse position in world space.
+    /// Mouse position in projected screen space.
+    pub mouse_screen_pos: Vec2,
+    /// Mouse position in gameplay world space.
     pub mouse_world_pos: Vec2,
     /// Whether primary attack (left click) was pressed.
     pub attack_pressed: bool,
@@ -44,45 +48,31 @@ pub struct GameInput {
 }
 
 /// Input buffer: stores the last N frames of input for buffered actions.
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct InputBuffer {
-    /// Ring buffer of recent attack presses (true = pressed that frame).
-    pub attack_buffer: [bool; 4],
-    /// Ring buffer of recent dodge presses.
-    pub dodge_buffer: [bool; 4],
-    /// Current write index.
-    pub index: usize,
-}
-
-impl Default for InputBuffer {
-    fn default() -> Self {
-        Self {
-            attack_buffer: [false; 4],
-            dodge_buffer: [false; 4],
-            index: 0,
-        }
-    }
+    pub attack_frames_remaining: u32,
+    pub dodge_frames_remaining: u32,
 }
 
 impl InputBuffer {
     /// Returns true if attack was pressed within the buffer window.
     pub fn attack_buffered(&self) -> bool {
-        self.attack_buffer.iter().any(|&b| b)
+        self.attack_frames_remaining > 0
     }
 
     /// Returns true if dodge was pressed within the buffer window.
     pub fn dodge_buffered(&self) -> bool {
-        self.dodge_buffer.iter().any(|&b| b)
+        self.dodge_frames_remaining > 0
     }
 
     /// Consume the buffered attack (clear all entries).
     pub fn consume_attack(&mut self) {
-        self.attack_buffer = [false; 4];
+        self.attack_frames_remaining = 0;
     }
 
     /// Consume the buffered dodge.
     pub fn consume_dodge(&mut self) {
-        self.dodge_buffer = [false; 4];
+        self.dodge_frames_remaining = 0;
     }
 }
 
@@ -219,7 +209,9 @@ fn gather_input_system(
     };
 
     if let Some(cursor_pos) = window.cursor_position() {
-        if let Ok(world_pos) = camera.viewport_to_world_2d(cam_transform, cursor_pos) {
+        if let Ok(screen_pos) = camera.viewport_to_world_2d(cam_transform, cursor_pos) {
+            game_input.mouse_screen_pos = screen_pos;
+            let world_pos = screen_to_world(screen_pos.x, screen_pos.y);
             game_input.mouse_world_pos = world_pos;
         }
     }
@@ -228,12 +220,22 @@ fn gather_input_system(
 /// Write current frame's input into the ring buffer.
 fn input_buffer_system(
     game_input: Res<GameInput>,
+    feel: Res<CombatFeelConfig>,
     mut buffer: ResMut<InputBuffer>,
 ) {
-    let idx = buffer.index;
-    buffer.attack_buffer[idx] = game_input.attack_pressed;
-    buffer.dodge_buffer[idx] = game_input.dodge_pressed;
-    buffer.index = (idx + 1) % 4;
+    let window = feel.input_buffer_frames.max(1);
+
+    buffer.attack_frames_remaining = if game_input.attack_pressed {
+        window
+    } else {
+        buffer.attack_frames_remaining.saturating_sub(1)
+    };
+
+    buffer.dodge_frames_remaining = if game_input.dodge_pressed {
+        window
+    } else {
+        buffer.dodge_frames_remaining.saturating_sub(1)
+    };
 }
 
 /// FPS debug overlay: toggle with F2, shows FPS and entity count at top-right.

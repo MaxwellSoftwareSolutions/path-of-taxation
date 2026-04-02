@@ -108,6 +108,12 @@ CombatFeel(
         // Debate Club card play
         debate_shake_px: 1.0,
         debate_vignette_flash_ms: 100,
+
+        // Combat readability -- keep the player framed but lead into danger.
+        follow_smoothing: 0.14,
+        cursor_lead_px: 92.0,
+        movement_lead_px: 46.0,
+        lookahead_responsiveness: 0.18,
     ),
 
     // =========================================================================
@@ -225,6 +231,20 @@ CombatFeel(
     // N frames. Forgiveness mechanic that prevents frustrating "I pressed it!"
 
     coyote_time_frames: 3,              // 50ms forgiveness window
+
+    // =========================================================================
+    // PLAYER MOVEMENT
+    // =========================================================================
+    // PoE-style combat reads better when locomotion has weight but still obeys
+    // the player instantly. These values tune the "commitment without sludge"
+    // zone for the current combat prototype.
+
+    player_movement: (
+        acceleration: 2400.0,
+        deceleration: 3000.0,
+        attack_move_multiplier: 0.45,
+        recovery_move_multiplier: 0.72,
+    ),
 
     // =========================================================================
     // TIME DILATION
