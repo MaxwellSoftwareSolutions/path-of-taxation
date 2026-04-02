@@ -14,3 +14,5 @@ serde = { workspace = true }
 ron = { workspace = true }
 rand = { workspace = true }
 glam = { workspace = true }
+hexx = "0.24"
+bevy_panorbit_camera = "0.34"

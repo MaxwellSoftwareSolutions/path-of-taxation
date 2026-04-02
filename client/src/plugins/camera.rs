@@ -33,10 +33,11 @@ fn spawn_camera(mut commands: Commands) {
         Camera2d,
         MainCamera,
         Transform::default(),
-        Bloom {
-            intensity: 0.08,
-            ..Bloom::OLD_SCHOOL
-        },
+        // Bloom disabled -- causing swap chain crash on GTX 1080 + driver 535
+        // Bloom {
+        //     intensity: 0.08,
+        //     ..Bloom::OLD_SCHOOL
+        // },
     ));
 }
 
