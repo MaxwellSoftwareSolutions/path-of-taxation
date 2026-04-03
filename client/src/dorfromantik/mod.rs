@@ -330,8 +330,8 @@ fn setup_scene(
     };
 
     // Adjacent hex centers are 5.02 apart at scale 2.9.
-    // Circumradius to touch = 2.511. Use 2.42 for a thin beveled gap.
-    let hex_fill = 2.42;
+    // Circumradius to touch = 2.511. Use 2.50 -- hair's width gap.
+    let hex_fill = 2.50;
     let body_mesh = meshes.add(
         Extrusion::new(RegularPolygon::new(hex_fill, 6), 0.92)
             .mesh()
