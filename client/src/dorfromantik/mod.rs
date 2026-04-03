@@ -195,10 +195,10 @@ fn setup_lighting(mut commands: Commands) {
 
 fn setup_camera(mut commands: Commands) {
     let controller = DioramaCamera {
-        focus: Vec3::new(2.0, 0.6, 1.0),
-        radius: 26.0,
-        yaw: -0.55,
-        pitch: 0.68,
+        focus: Vec3::new(0.0, 0.5, 0.0),
+        radius: 18.0,
+        yaw: -0.65,
+        pitch: 0.72,
     };
 
     commands.spawn((
@@ -216,6 +216,7 @@ fn setup_camera(mut commands: Commands) {
 
 fn setup_scene(
     mut commands: Commands,
+    asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -228,6 +229,8 @@ fn setup_scene(
 
     spawn_atmosphere(&mut commands, &mut meshes, &mut materials);
 
+    // Solid color top materials (textures don't UV-map well on hex extrusions).
+    // The detail comes from the 3D features spawned on top.
     let ancient_forest = TileMaterialSet {
         top: materials.add(tile_material(TileKind::AncientForest.top_color(), 0.98, 0.0)),
         side: materials.add(tile_material(TileKind::AncientForest.side_color(), 1.0, 0.0)),
@@ -270,18 +273,18 @@ fn setup_scene(
     };
 
     let feature_meshes = FeatureMeshes {
-        trunk: meshes.add(Cuboid::new(0.14, 0.62, 0.14)),
-        branch: meshes.add(Cuboid::new(0.10, 0.42, 0.10)),
-        wall: meshes.add(Cuboid::new(0.84, 0.36, 0.20)),
-        tower: meshes.add(Cuboid::new(0.26, 0.62, 0.26)),
-        hut: meshes.add(Cuboid::new(0.52, 0.30, 0.42)),
-        roof: meshes.add(Cuboid::new(0.62, 0.14, 0.50)),
-        rock: meshes.add(Sphere::new(0.22).mesh().uv(20, 12)),
-        crystal: meshes.add(Cuboid::new(0.16, 0.54, 0.16)),
-        water_patch: meshes.add(Cuboid::new(1.10, 0.05, 1.40)),
-        path: meshes.add(Cuboid::new(0.90, 0.03, 0.30)),
-        reed: meshes.add(Cuboid::new(0.04, 0.34, 0.04)),
-        flame: meshes.add(Sphere::new(0.08).mesh().uv(14, 8)),
+        trunk: meshes.add(Cuboid::new(0.18, 1.40, 0.18)),   // 2x taller trunks
+        branch: meshes.add(Cuboid::new(0.12, 0.90, 0.12)),  // 2x taller branches
+        wall: meshes.add(Cuboid::new(0.90, 0.70, 0.22)),    // taller walls
+        tower: meshes.add(Cuboid::new(0.30, 1.10, 0.30)),   // taller tower
+        hut: meshes.add(Cuboid::new(0.58, 0.50, 0.48)),     // taller hut
+        roof: meshes.add(Cuboid::new(0.68, 0.18, 0.56)),
+        rock: meshes.add(Sphere::new(0.30).mesh().uv(20, 12)), // bigger rocks
+        crystal: meshes.add(Cuboid::new(0.18, 0.90, 0.18)), // taller crystals
+        water_patch: meshes.add(Cuboid::new(1.30, 0.05, 1.60)),
+        path: meshes.add(Cuboid::new(1.00, 0.03, 0.34)),
+        reed: meshes.add(Cuboid::new(0.05, 0.60, 0.05)),    // taller reeds
+        flame: meshes.add(Sphere::new(0.12).mesh().uv(14, 8)), // bigger flame
     };
     let feature_materials = FeatureMaterials {
         dead_wood: materials.add(tile_material(Color::srgb(0.19, 0.17, 0.14), 1.0, 0.0)),
@@ -326,39 +329,37 @@ fn setup_scene(
         wall: meshes.add(Cuboid::new(0.22, 0.18, 1.70)),
     };
 
-    // Hex polygon radii sized to nearly touch at layout scale 2.9.
-    // hexx layout scale is the distance between hex centers.
-    // For flat-top hexes: the horizontal distance between centers = scale.x * sqrt(3).
-    // The polygon circumradius needs to be ~scale / sqrt(3) to fill the space.
-    // 2.9 / 1.732 ≈ 1.67. Use 1.62 for a tiny gap (beveled edge look).
+    // Adjacent hex centers are 5.02 apart at scale 2.9.
+    // Circumradius to touch = 2.511. Use 2.42 for a thin beveled gap.
+    let hex_fill = 2.42;
     let body_mesh = meshes.add(
-        Extrusion::new(RegularPolygon::new(1.58, 6), 0.92)
+        Extrusion::new(RegularPolygon::new(hex_fill, 6), 0.92)
             .mesh()
             .build(),
     );
     let skirt_mesh = meshes.add(
-        Extrusion::new(RegularPolygon::new(1.66, 6), 0.26)
+        Extrusion::new(RegularPolygon::new(hex_fill + 0.06, 6), 0.26)
             .mesh()
             .build(),
     );
     let rim_mesh = meshes.add(
-        Extrusion::new(RegularPolygon::new(1.62, 6), 0.08)
+        Extrusion::new(RegularPolygon::new(hex_fill + 0.03, 6), 0.08)
             .mesh()
             .build(),
     );
     let cap_meshes = [
         meshes.add(
-            Extrusion::new(RegularPolygon::new(1.52, 6), 0.12)
+            Extrusion::new(RegularPolygon::new(hex_fill - 0.06, 6), 0.12)
                 .mesh()
                 .build(),
         ),
         meshes.add(
-            Extrusion::new(RegularPolygon::new(1.48, 6), 0.14)
+            Extrusion::new(RegularPolygon::new(hex_fill - 0.10, 6), 0.14)
                 .mesh()
                 .build(),
         ),
         meshes.add(
-            Extrusion::new(RegularPolygon::new(1.44, 6), 0.16)
+            Extrusion::new(RegularPolygon::new(hex_fill - 0.14, 6), 0.16)
                 .mesh()
                 .build(),
         ),
@@ -373,8 +374,11 @@ fn setup_scene(
             TileKind::FortifiedSettlement => fortified_settlement.clone(),
         };
         let variant = index % 5;
+        // All tiles must have the SAME rotation so hex edges align and tiles tessellate.
+        // Extrusion is along Z axis, rotate -90° around X to stand it upright (Y axis).
+        // Then rotate 30° around Y to align flat-top hex edges with the hexx grid.
         let shell_rotation =
-            Quat::from_rotation_y(variant as f32 * (PI / 6.0)) * Quat::from_rotation_x(-FRAC_PI_2);
+            Quat::from_rotation_y(std::f32::consts::FRAC_PI_6) * Quat::from_rotation_x(-FRAC_PI_2);
 
         commands
             .spawn((
@@ -1036,56 +1040,16 @@ fn setup_overlay(mut commands: Commands, board: Option<Res<BoardState>>) {
 }
 
 fn starter_tiles() -> Vec<BoardTileData> {
-    // Generate a larger board (radius 5) with biome zones that blend organically.
-    // Center: CorruptedRuins, West: AncientForest, East: FortifiedSettlement,
-    // South: Riverbank, with mixing at boundaries.
-    let mut tiles = Vec::new();
-
-    for coord in Hex::ZERO.range(5) {
-        let q = coord.x();
-        let r = coord.y();
-        let dist = coord.unsigned_distance_to(Hex::ZERO);
-
-        // Biome selection based on position for organic zones.
-        let kind = if q <= -2 {
-            // West: deep forest
-            TileKind::AncientForest
-        } else if q >= 2 && r <= 1 {
-            // East: settlement
-            TileKind::FortifiedSettlement
-        } else if r >= 2 || (r >= 1 && q >= 0) {
-            // South/southeast: riverbank/swamp
-            if (q + r * 7) % 3 == 0 { TileKind::AncientForest } else { TileKind::Riverbank }
-        } else if dist <= 2 {
-            // Center: corrupted ruins
-            TileKind::CorruptedRuins
-        } else {
-            // Transition zones: mix based on hash
-            let h = (q.wrapping_mul(7919) as u32).wrapping_mul(31) ^ (r.wrapping_mul(104729) as u32);
-            match h % 4 {
-                0 => TileKind::AncientForest,
-                1 => TileKind::CorruptedRuins,
-                2 => TileKind::Riverbank,
-                _ => TileKind::AncientForest,
-            }
-        };
-
-        // Height variation: forest is tallest, riverbank lowest, ruins and settlement mid.
-        let base_height = match kind {
-            TileKind::AncientForest => 0.78,
-            TileKind::CorruptedRuins => 0.72,
-            TileKind::Riverbank => 0.55,
-            TileKind::FortifiedSettlement => 0.70,
-        };
-        // Add per-tile variation for organic feel.
-        let h = ((q.wrapping_mul(7919_i32)) as u32) ^ ((r.wrapping_mul(104729_i32)) as u32);
-        let variation = ((h % 20) as f32 - 10.0) * 0.012;
-        let surface_height = base_height + variation;
-
-        tiles.push(BoardTileData { coord, kind, surface_height });
-    }
-
-    tiles
+    // 7 tiles: center hex + 6 neighbors. Tight cluster, nearly touching.
+    vec![
+        BoardTileData { coord: Hex::ZERO,       kind: TileKind::FortifiedSettlement, surface_height: 0.72 },
+        BoardTileData { coord: Hex::new( 1,  0), kind: TileKind::AncientForest,      surface_height: 0.80 },
+        BoardTileData { coord: Hex::new( 0,  1), kind: TileKind::CorruptedRuins,     surface_height: 0.68 },
+        BoardTileData { coord: Hex::new(-1,  1), kind: TileKind::AncientForest,      surface_height: 0.82 },
+        BoardTileData { coord: Hex::new(-1,  0), kind: TileKind::Riverbank,          surface_height: 0.55 },
+        BoardTileData { coord: Hex::new( 0, -1), kind: TileKind::AncientForest,      surface_height: 0.76 },
+        BoardTileData { coord: Hex::new( 1, -1), kind: TileKind::CorruptedRuins,     surface_height: 0.65 },
+    ]
 }
 
 fn camera_transform(controller: &DioramaCamera) -> Transform {
